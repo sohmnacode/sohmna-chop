@@ -235,12 +235,14 @@ function getAudioCtx(){if(!audioCtx)audioCtx=new(window.AudioContext||window.web
 
 // BPM-SYNCED PLAYBACK RATE
 function getPadRate(pad){
-  var baseRate=0.5+(pad.pitch/50);
+  // Pitch knob: 0=0.5x, 50=1.0x, 100=2.0x
+  var pitchRate=0.5+(pad.pitch/100)*1.5;
+  // BPM sync: if sample has detected BPM, adjust rate to match current BPM
   if(pad.detectedBpm>0){
     var bpmRatio=bpm/pad.detectedBpm;
-    return baseRate*bpmRatio;
+    return pitchRate*bpmRatio;
   }
-  return baseRate;
+  return pitchRate;
 }
 
 // FX ENGINE
@@ -905,6 +907,8 @@ function loadPresetSound(preset){
       ac.decodeAudioData(xhr.response,function(buffer){
         console.log("PRESET: Decoded "+preset.name+" ("+buffer.duration.toFixed(1)+"s)");ac.close();
         var pad=allBanks[preset.bank][preset.pad];pad.buffer=buffer;pad.name=preset.name;pad.startMarker=0;pad.endMarker=1;
+        // Detect BPM for preset sounds too
+        try{var db=detectBPM(buffer);if(db>0&&db>=60&&db<=200)pad.detectedBpm=db}catch(e){}
         if(currentBank===preset.bank){var ne=document.getElementById("padName"+preset.pad);if(ne)ne.textContent=preset.name;var ie=document.getElementById("padInd"+preset.pad);if(ie)ie.classList.add("loaded");if(preset.pad===selectedPad){requestAnimationFrame(drawWaveform);updateSampleInfo(buffer)}}
         updateFooter();
       },function(err){console.log("PRESET: Decode failed for "+url,err);ac.close();extIdx++;tryNext()});
