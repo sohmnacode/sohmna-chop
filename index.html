@@ -323,18 +323,27 @@ function releasePad(i){var v=activeVoices[i];if(!v)return;var ctx=getAudioCtx();
 // PREVIEW LOOP
 var previewSource=null,previewGain=null,previewPadIdx=-1,previewBankIdx=-1,isPreviewing=false;
 var previewStartTime=0,previewDuration=0,previewPlaybackRate=1,previewAnimFrame2=null,previewPadRef=null;
+var previewPlayStart=0,previewPlayEnd=1;
 function previewAnimLoop(){if(!isPreviewing){previewAnimFrame2=null;return}if(currentMode!=="SEQ"&&currentMode!=="SONG")drawWaveform();previewAnimFrame2=requestAnimationFrame(previewAnimLoop)}
 function togglePreview(){if(isPreviewing){stopPreview();return}var pad=pads[selectedPad];if(!pad.buffer)return;startPreview(selectedPad)}
 function startPreview(pi){
   stopPreview();initFX();var ctx=getAudioCtx();var pvPad=pads[pi];var pvBank=currentBank;
   if(!pvPad.buffer)return;isPreviewing=true;previewPadIdx=pi;previewBankIdx=currentBank;previewPadRef=pvPad;
+
+  // In CHOP mode, play the FULL buffer (all slices as one continuous sample)
+  var fullMode=(currentMode==="CHOP");
+  var playStart=fullMode?0:pvPad.startMarker;
+  var playEnd=fullMode?1:pvPad.endMarker;
+
   function playLoop(){
     if(!isPreviewing)return;
     var src=ctx.createBufferSource();src.buffer=pvPad.buffer;var g=ctx.createGain();var vol=(pvPad.volume/100)*(masterVol/100);
     g.gain.setValueAtTime(vol,ctx.currentTime);var rate=0.5+(pvPad.pitch/50);src.playbackRate.value=rate;
-    var st=pvPad.startMarker*pvPad.buffer.duration,dur=(pvPad.endMarker-pvPad.startMarker)*pvPad.buffer.duration;
+    var st=playStart*pvPad.buffer.duration,dur=(playEnd-playStart)*pvPad.buffer.duration;
     src.connect(g);var sp=pads;pads=allBanks[pvBank];routeThroughFX(src,g,pi);pads=sp;
     src.start(0,st,dur);previewSource=src;previewGain=g;previewStartTime=ctx.currentTime;previewDuration=dur/rate;previewPlaybackRate=rate;
+    // Store play range for waveform playhead
+    previewPlayStart=playStart;previewPlayEnd=playEnd;
     if(currentBank===pvBank){var padEl=document.querySelectorAll(".pad")[pi];if(padEl)padEl.classList.add("active");markPadGlowing(pi,previewDuration*1000+50)}
     src.onended=function(){if(isPreviewing){playLoop()}else{if(currentBank===pvBank){var pe=document.querySelectorAll(".pad")[pi];if(pe)pe.classList.remove("active")}}};
   }
@@ -554,11 +563,11 @@ function drawWaveform(){
     if(isPreviewing&&previewPadRef&&previewDuration>0){
       var pvPad=previewPadRef;if(pvPad.buffer===pad.buffer||(currentBank===previewBankIdx&&previewPadIdx===selectedPad)){
         var aCtx2=getAudioCtx();var el2=aCtx2.currentTime-previewStartTime;var prog=(el2/previewDuration)%1;
-        var pvSx=pvPad.startMarker*w,pvEx=pvPad.endMarker*w;var phx2=pvSx+prog*(pvEx-pvSx);
+        var pvSx=previewPlayStart*w,pvEx=previewPlayEnd*w;var phx2=pvSx+prog*(pvEx-pvSx);
         ctx.save();ctx.strokeStyle="#26c6da";ctx.lineWidth=2.5;ctx.shadowColor="#26c6da";ctx.shadowBlur=12;
         ctx.beginPath();ctx.moveTo(phx2,0);ctx.lineTo(phx2,h);ctx.stroke();
         ctx.fillStyle="#26c6da";ctx.shadowBlur=16;ctx.beginPath();ctx.arc(phx2,h/2,4,0,Math.PI*2);ctx.fill();ctx.restore();
-        var tSec=pvPad.buffer.duration;var cSec=pvPad.startMarker*tSec+prog*(pvPad.endMarker-pvPad.startMarker)*tSec;
+        var tSec=pvPad.buffer.duration;var cSec=previewPlayStart*tSec+prog*(previewPlayEnd-previewPlayStart)*tSec;
         var mm=Math.floor(cSec/60),ss=Math.floor(cSec%60),ms=Math.floor((cSec%1)*100);
         ctx.font="bold 10px 'JetBrains Mono',monospace";ctx.textAlign="right";ctx.fillStyle="rgba(38,198,218,0.8)";
         ctx.fillText((mm<10?"0":"")+mm+":"+(ss<10?"0":"")+ss+"."+(ms<10?"0":"")+ms,w-8,h-6);
@@ -792,7 +801,7 @@ var PRESETS=[
   // {bank:0,pad:8,file:"a9-FILENAME",name:"DISPLAY NAME"},
   // {bank:0,pad:9,file:"a10-FILENAME",name:"DISPLAY NAME"},
   // {bank:0,pad:10,file:"a11-FILENAME",name:"DISPLAY NAME"},
-  {bank:0,pad:11,file:"a12-GAWD",name:"GAWD"}
+  {bank:0,pad:11,file:"12-GAWD",name:"GAWD"}
 
   // ── BANK B — BASS/KEYS (bank:1) ──
   // {bank:1,pad:0,file:"b1-FILENAME",name:"DISPLAY NAME"},
