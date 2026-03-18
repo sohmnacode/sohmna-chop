@@ -604,10 +604,11 @@ function resetKnob(param){
   var pad=pads[selectedPad];
   var defaults={volume:80,pitch:50,decay:70,swing:0,master:85,reverbSize:40,reverbMix:30,delayTime:35,delayFeedback:25,delayMix:20,distDrive:30,filterCutoff:70,filterReso:20};
   if(param==="bpm"){
-    // Reset to detected BPM if available, otherwise 120
     var detected=pad.detectedBpm;
     bpm=(detected>0)?detected:120;
     if(isPlaying){stopSequencer();startSequencer()}
+  } else if(param==="pitch"){
+    pad.pitch=50;
   } else if(param==="master"){
     masterVol=85;if(masterGain)masterGain.gain.value=masterVol/100;
   } else if(param==="swing"){
@@ -615,12 +616,17 @@ function resetKnob(param){
   } else if(defaults[param]!==undefined){
     setKV(param,defaults[param]);
   }
+  // Restart preview if rate-affecting knob was reset
+  if((param==="bpm"||param==="pitch")&&isPreviewing){var pvPi=previewPadIdx;var pvBk=previewBankIdx;stopPreview();pads=allBanks[pvBk];startPreview(pvPi);pads=allBanks[currentBank]}
   updateKnobDisplays();updateFooter();
 }
 document.addEventListener("mousemove",function(e){if(!activeKnob)return;var k=document.querySelector('.knob[data-param="'+activeKnob+'"]');if(!k)return;var mn=+k.dataset.min,mx=+k.dataset.max;setKV(activeKnob,Math.round(Math.min(mx,Math.max(mn,knobStartVal+(knobStartY-e.clientY)*((mx-mn)/150)))));updateKnobDisplays()});
 document.addEventListener("mouseup",function(){activeKnob=null});
 function getKV(p){var pad=pads[selectedPad];var map={volume:pad.volume,pitch:pad.pitch,decay:pad.decay,bpm:bpm,swing:swing,master:masterVol,reverbSize:pad.reverbSize,reverbMix:pad.reverbMix,delayTime:pad.delayTime,delayFeedback:pad.delayFeedback,delayMix:pad.delayMix,distDrive:pad.distDrive,filterCutoff:pad.filterCutoff,filterReso:pad.filterReso};return map[p]!==undefined?map[p]:50}
-function setKV(p,v){var pad=pads[selectedPad];if(p==="volume")pad.volume=v;else if(p==="pitch")pad.pitch=v;else if(p==="decay")pad.decay=v;else if(p==="bpm"){bpm=v;if(isPlaying){stopSequencer();startSequencer()}}else if(p==="swing")swing=v;else if(p==="master"){masterVol=v;if(masterGain)masterGain.gain.value=v/100}else if(p==="reverbSize")pad.reverbSize=v;else if(p==="reverbMix")pad.reverbMix=v;else if(p==="delayTime")pad.delayTime=v;else if(p==="delayFeedback")pad.delayFeedback=v;else if(p==="delayMix")pad.delayMix=v;else if(p==="distDrive")pad.distDrive=v;else if(p==="filterCutoff")pad.filterCutoff=v;else if(p==="filterReso")pad.filterReso=v;updateFooter()}
+function setKV(p,v){var pad=pads[selectedPad];if(p==="volume")pad.volume=v;else if(p==="pitch")pad.pitch=v;else if(p==="decay")pad.decay=v;else if(p==="bpm"){bpm=v;if(isPlaying){stopSequencer();startSequencer()}}else if(p==="swing")swing=v;else if(p==="master"){masterVol=v;if(masterGain)masterGain.gain.value=v/100}else if(p==="reverbSize")pad.reverbSize=v;else if(p==="reverbMix")pad.reverbMix=v;else if(p==="delayTime")pad.delayTime=v;else if(p==="delayFeedback")pad.delayFeedback=v;else if(p==="delayMix")pad.delayMix=v;else if(p==="distDrive")pad.distDrive=v;else if(p==="filterCutoff")pad.filterCutoff=v;else if(p==="filterReso")pad.filterReso=v;updateFooter();
+  // Restart preview if BPM or pitch changed while previewing
+  if((p==="bpm"||p==="pitch")&&isPreviewing){var pvPi=previewPadIdx;var pvBk=previewBankIdx;stopPreview();pads=allBanks[pvBk];startPreview(pvPi);pads=allBanks[currentBank]}
+}
 function updateKnobDisplays(){var pad=pads[selectedPad];var vals={volume:pad.volume,pitch:pad.pitch,decay:pad.decay,bpm:bpm,swing:swing,master:masterVol,reverbSize:pad.reverbSize,reverbMix:pad.reverbMix,delayTime:pad.delayTime,delayFeedback:pad.delayFeedback,delayMix:pad.delayMix,distDrive:pad.distDrive,filterCutoff:pad.filterCutoff,filterReso:pad.filterReso};Object.keys(vals).forEach(function(p){var v=vals[p];var d=document.querySelector('[data-param-display="'+p+'"]');if(d)d.textContent=v;var k=document.querySelector('.knob[data-param="'+p+'"]');if(k)k.querySelector(".knob-pointer").style.transform="translate(-50%,-100%) rotate("+((v-(+k.dataset.min))/((+k.dataset.max)-(+k.dataset.min))*270-135)+"deg)"})}
 
 // FX UI
@@ -733,6 +739,7 @@ function doChop(){
       pads[i].name="R"+(order[i]+1)+"→"+(i+1);
       pads[i].startMarker=i*sz;
       pads[i].endMarker=(i+1)*sz;
+      pads[i].detectedBpm=pad.detectedBpm;
       document.getElementById("padName"+i).textContent=pads[i].name;
       document.getElementById("padInd"+i).classList.add("loaded");
       for(var k of waveformCache.keys())if(k.startsWith(i+"-"))waveformCache.delete(k);
@@ -777,6 +784,7 @@ function doChop(){
     pads[i].name=chopMode.charAt(0).toUpperCase()+"-"+(i+1);
     pads[i].startMarker=slices[i].start;
     pads[i].endMarker=slices[i].end;
+    pads[i].detectedBpm=pad.detectedBpm;
     document.getElementById("padName"+i).textContent=pads[i].name;
     document.getElementById("padInd"+i).classList.add("loaded");
     for(var k of waveformCache.keys())if(k.startsWith(i+"-"))waveformCache.delete(k);
