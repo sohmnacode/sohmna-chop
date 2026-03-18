@@ -98,6 +98,10 @@ body{background:#050507;color:#ccc;font-family:'JetBrains Mono','SF Mono',monosp
 .btn-metro.on{background:linear-gradient(180deg,rgba(255,210,63,.18),rgba(255,210,63,.05));border-color:rgba(255,210,63,.4);color:#ffd23f;box-shadow:0 0 10px rgba(255,210,63,0.15)}
 .btn-preview{background:linear-gradient(180deg,rgba(38,198,218,.12),rgba(38,198,218,.03));border-color:rgba(38,198,218,.25);color:#26c6da}
 .btn-preview.on{background:linear-gradient(180deg,rgba(38,198,218,.3),rgba(38,198,218,.1));border-color:#26c6da;color:#fff;animation:pulse 1s ease-in-out infinite;box-shadow:0 0 12px rgba(38,198,218,0.2)}
+.btn-reverse{background:linear-gradient(180deg,rgba(255,138,101,.12),rgba(255,138,101,.03));border-color:rgba(255,138,101,.25);color:#ff8a65}
+.btn-reverse.on{background:linear-gradient(180deg,rgba(255,138,101,.3),rgba(255,138,101,.1));border-color:#ff8a65;color:#fff;box-shadow:0 0 10px rgba(255,138,101,0.2)}
+.btn-speed{background:linear-gradient(180deg,rgba(171,71,188,.12),rgba(171,71,188,.03));border-color:rgba(171,71,188,.25);color:#ab47bc}
+.btn-speed.on{background:linear-gradient(180deg,rgba(171,71,188,.3),rgba(171,71,188,.1));border-color:#ab47bc;color:#fff;box-shadow:0 0 10px rgba(171,71,188,0.2)}
 /* Pads — UNCHANGED */
 .pad-grid{padding:10px 20px 16px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px;flex:1;align-content:stretch}
 .pad{border-radius:8px;cursor:pointer;background:linear-gradient(160deg,#222228,#18181c,#141418);border:1.5px solid #2a2a2e;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;transition:all .06s ease-out;min-height:0;box-shadow:0 4px 12px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.04)}
@@ -221,7 +225,7 @@ var fxDefaults={reverb:false,reverbSize:40,reverbMix:30,delay:false,delayTime:35
 var currentBank=0;
 var allBanks=Array.from({length:NUM_BANKS},function(){
   return Array.from({length:12},function(_,i){
-    return Object.assign({id:i,name:"EMPTY",buffer:null,active:false,startMarker:0,endMarker:1,volume:80,pitch:50,decay:70,color:PAD_COLORS[i],detectedBpm:0},JSON.parse(JSON.stringify(fxDefaults)));
+    return Object.assign({id:i,name:"EMPTY",buffer:null,origBuffer:null,active:false,startMarker:0,endMarker:1,volume:80,pitch:50,decay:70,color:PAD_COLORS[i],detectedBpm:0,reversed:false,speedMode:0},JSON.parse(JSON.stringify(fxDefaults)));
   });
 });
 var pads=allBanks[0];
@@ -589,6 +593,73 @@ function updateSampleInfo(buffer,isNewLoad){
   }
 }
 
+// ── REVERSE SAMPLE ──
+function reverseBuffer(buf){
+  var ctx=getAudioCtx();
+  var newBuf=ctx.createBuffer(buf.numberOfChannels,buf.length,buf.sampleRate);
+  for(var ch=0;ch<buf.numberOfChannels;ch++){
+    var src=buf.getChannelData(ch);
+    var dst=newBuf.getChannelData(ch);
+    for(var i=0;i<buf.length;i++) dst[i]=src[buf.length-1-i];
+  }
+  return newBuf;
+}
+
+function toggleReverse(){
+  var pad=pads[selectedPad];if(!pad.buffer)return;
+  // Store original buffer on first reverse
+  if(!pad.origBuffer) pad.origBuffer=pad.buffer;
+  pad.reversed=!pad.reversed;
+  if(pad.reversed){
+    pad.buffer=reverseBuffer(pad.origBuffer);
+  } else {
+    pad.buffer=pad.origBuffer;
+  }
+  // Clear waveform cache for this pad
+  for(var k of waveformCache.keys())if(k.startsWith(selectedPad+"-"))waveformCache.delete(k);
+  drawWaveform();updateModeUI();
+}
+
+// ── HALF SPEED / DOUBLE SPEED ──
+// speedMode: 0=normal, -1=half, 1=double
+function setSpeed(mode){
+  var pad=pads[selectedPad];if(!pad.buffer)return;
+  if(!pad.origBuffer) pad.origBuffer=pad.buffer;
+  pad.speedMode=mode;
+  var srcBuf=pad.reversed?reverseBuffer(pad.origBuffer):pad.origBuffer;
+  
+  if(mode===0){
+    // Normal speed — use original (or reversed original)
+    pad.buffer=srcBuf;
+  } else {
+    // Resample: half speed = double length, double speed = half length
+    var ctx=getAudioCtx();
+    var rate=mode===-1?0.5:2.0;
+    var newLen=Math.floor(srcBuf.length/rate);
+    var newBuf=ctx.createBuffer(srcBuf.numberOfChannels,newLen,srcBuf.sampleRate);
+    for(var ch=0;ch<srcBuf.numberOfChannels;ch++){
+      var src=srcBuf.getChannelData(ch);
+      var dst=newBuf.getChannelData(ch);
+      for(var i=0;i<newLen;i++){
+        var srcPos=i*rate;
+        var idx=Math.floor(srcPos);
+        var frac=srcPos-idx;
+        var s0=src[idx]||0;
+        var s1=src[idx+1]||0;
+        dst[i]=s0+(s1-s0)*frac; // linear interpolation
+      }
+    }
+    pad.buffer=newBuf;
+    // Adjust detected BPM for speed change
+    if(pad.detectedBpm>0){
+      pad.detectedBpm=Math.round(pad.origBuffer?detectBPM(pad.origBuffer):pad.detectedBpm);
+    }
+  }
+  for(var k of waveformCache.keys())if(k.startsWith(selectedPad+"-"))waveformCache.delete(k);
+  pad.startMarker=0;pad.endMarker=1;
+  drawWaveform();updateSampleInfo(pad.buffer,false);updateModeUI();
+}
+
 function loadFileTopad(file,pi){
   var ne=document.getElementById("padName"+pi),on=ne.textContent;ne.textContent="LOADING...";ne.style.color="#ffd23f";
   if(file.size>MAX_FILE_MB*1024*1024){ne.textContent="TOO BIG";ne.style.color="#ff3c5f";setTimeout(function(){ne.textContent=on;ne.style.color=""},2000);return}
@@ -598,7 +669,7 @@ function loadFileTopad(file,pi){
     try{
       ctx.decodeAudioData(ev.target.result.slice(0),function(buf){
         for(var k of waveformCache.keys())if(k.startsWith(pi+"-"))waveformCache.delete(k);
-        pads[pi].buffer=buf;pads[pi].name=file.name.replace(/\.[^/.]+$/,"").slice(0,10);pads[pi].startMarker=0;pads[pi].endMarker=1;
+        pads[pi].buffer=buf;pads[pi].origBuffer=buf;pads[pi].reversed=false;pads[pi].speedMode=0;pads[pi].name=file.name.replace(/\.[^/.]+$/,"").slice(0,10);pads[pi].startMarker=0;pads[pi].endMarker=1;
         ne.textContent=pads[pi].name;ne.style.color="";document.getElementById("padInd"+pi).classList.add("loaded");
         if(pi===selectedPad){requestAnimationFrame(drawWaveform);updateSampleInfo(buf,true)}updateFooter();
         // Auto-switch to SAMPLE mode to show the waveform
@@ -719,6 +790,11 @@ document.querySelectorAll(".mode-btn").forEach(function(btn){btn.addEventListene
 function updateModeUI(){
   var sg=document.getElementById("seqGrid"),cv=document.getElementById("waveformCanvas"),ph=document.getElementById("displayPlaceholder"),act=document.getElementById("actionButtons"),ag=document.getElementById("arrangeGrid"),fxr=document.getElementById("fxRow");
   var h='<button class="action-btn btn-preview '+(isPreviewing?'on':'')+'" id="btnPreview">'+(isPreviewing?'■ STOP':'▶ PREVIEW')+'</button>';
+  // Reverse & speed buttons
+  var sp=pads[selectedPad];
+  h+='<button class="action-btn btn-reverse '+(sp.reversed?'on':'')+'" id="btnReverse">⟲ REV</button>';
+  h+='<button class="action-btn btn-speed '+(sp.speedMode===-1?'on':'')+'" id="btnHalf">½×</button>';
+  h+='<button class="action-btn btn-speed '+(sp.speedMode===1?'on':'')+'" id="btnDouble">2×</button>';
   h+='<button class="action-btn btn-metro '+(metronomeOn?'on':'')+'" id="btnMetro">🔔 METRO</button>';
   h+='<button class="action-btn btn-rec '+(isRecording?'active':'')+'" id="btnRec">⏺ REC</button>';
   h+='<button class="action-btn '+(isPlaying?'btn-stop':'btn-play')+'" id="btnPlayStop">'+(isPlaying?'■ STOP':'▶ PLAY')+'</button>';
@@ -728,6 +804,9 @@ function updateModeUI(){
   if(currentMode==="SEQ"||currentMode==="SONG")h+='<button class="action-btn btn-clear" id="btnClear">CLR</button>';
   act.innerHTML=h;
   document.getElementById("btnPreview").addEventListener("click",togglePreview);
+  document.getElementById("btnReverse").addEventListener("click",toggleReverse);
+  document.getElementById("btnHalf").addEventListener("click",function(){setSpeed(pads[selectedPad].speedMode===-1?0:-1)});
+  document.getElementById("btnDouble").addEventListener("click",function(){setSpeed(pads[selectedPad].speedMode===1?0:1)});
   document.getElementById("btnMetro").addEventListener("click",function(){metronomeOn=!metronomeOn;updateModeUI()});
   document.getElementById("btnLoad").addEventListener("click",function(){document.getElementById("fileInput").click()});
   if(document.getElementById("btnSave"))document.getElementById("btnSave").addEventListener("click",saveSong);
