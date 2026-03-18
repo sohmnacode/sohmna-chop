@@ -774,10 +774,10 @@ var PRESET_BASE_URL="https://sohmnacode.github.io/sohmna-chop/sounds/";
 
 var PRESETS=[
   // Bank A (index 0) — Drums
-  {bank:0,pad:0,file:"a1-kick",name:"Kick"},
-  {bank:0,pad:1,file:"a2-snare",name:"Snare"},
-  {bank:0,pad:2,file:"a3-hihat",name:"HiHat"},
-  {bank:0,pad:3,file:"a4-clap",name:"Clap"},
+  {bank:0,pad:0,file:"a1-Kick",name:"Kick"},
+  {bank:0,pad:1,file:"a2-Snare",name:"Snare"},
+  {bank:0,pad:2,file:"a3-Hi Hat",name:"Hi Hat"},
+  {bank:0,pad:3,file:"a4-Juice 808",name:"Juice 808"},
   {bank:0,pad:4,file:"a5-tom-lo",name:"Tom Lo"},
   {bank:0,pad:5,file:"a6-tom-hi",name:"Tom Hi"},
   {bank:0,pad:6,file:"a7-rim",name:"Rim"},
@@ -808,7 +808,7 @@ function loadPresetSound(preset){
 
   function tryNext(){
     if(extIdx>=extensions.length)return; // Neither format found, skip silently
-    var url=PRESET_BASE_URL+preset.file+"."+extensions[extIdx];
+    var url=PRESET_BASE_URL+encodeURIComponent(preset.file+"."+extensions[extIdx]);
     
     fetch(url).then(function(response){
       if(!response.ok)throw new Error("Not found");
