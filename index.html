@@ -50,6 +50,10 @@ body{background:#050507;color:#ccc;font-family:'JetBrains Mono','SF Mono',monosp
 .arrange-slot.empty{background:linear-gradient(180deg,#1c1c20,#181820);color:#444}
 .arrange-slot.filled{background:linear-gradient(180deg,rgba(255,60,95,.12),rgba(255,60,95,.04));border-color:rgba(255,60,95,.3);color:#ff3c5f;box-shadow:inset 0 1px 0 rgba(255,255,255,0.05)}
 .arrange-slot.playing{background:linear-gradient(180deg,rgba(255,60,95,.3),rgba(255,60,95,.12));border-color:#ff3c5f;box-shadow:0 0 12px rgba(255,60,95,.3),inset 0 1px 0 rgba(255,255,255,0.08)}
+/* Sample info bar */
+.sample-info{display:flex;align-items:center;gap:16px;padding:4px 20px;background:linear-gradient(180deg,rgba(255,210,63,0.03),transparent);border-bottom:1px solid rgba(255,255,255,0.03)}
+.sample-info-item{font-size:8px;color:#888;letter-spacing:1.5px;text-transform:uppercase}
+.sample-info-item span{color:#ffd23f;font-weight:700}
 /* Transport — subtle glass */
 .transport{display:flex;align-items:center;gap:6px;padding:4px 20px;background:linear-gradient(180deg,#0e0e12,#0c0c10);border-top:1px solid rgba(255,255,255,0.03);border-bottom:1px solid rgba(255,255,255,0.03);box-shadow:inset 0 1px 0 rgba(255,255,255,0.02)}
 .transport-step{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,0.04);transition:background .05s}
@@ -144,6 +148,11 @@ body{background:#050507;color:#ccc;font-family:'JetBrains Mono','SF Mono',monosp
       <div class="seq-grid hidden" id="seqGrid"></div>
       <div class="arrange-grid hidden" id="arrangeGrid"></div>
     </div>
+  </div>
+  <div class="sample-info hidden" id="sampleInfo">
+    <span class="sample-info-item" id="sampleBpm">BPM: ---</span>
+    <span class="sample-info-item" id="sampleKey">KEY: ---</span>
+    <span class="sample-info-item" id="sampleDur">DUR: ---</span>
   </div>
   <div class="transport" id="transport"><span class="pattern-label">P1</span></div>
   <div class="fx-row hidden" id="fxRow">
@@ -271,6 +280,7 @@ function selectPad(i){
     else if(idx!==i&&bar)bar.remove();
   });
   updateKnobDisplays();if(currentMode==="FX")updateFXUI();updateFooter();
+  updateSampleInfo(pads[i].buffer);
   if(currentMode!=="SEQ"&&currentMode!=="SONG")drawWaveform();
 }
 
@@ -362,6 +372,118 @@ document.addEventListener("keyup",function(e){var idx=KEY_MAP.indexOf(e.key.toLo
 
 // FILE LOADING
 var MAX_FILE_MB=50;
+// ── BPM DETECTION (onset-based tempo estimation) ──
+var NOTE_NAMES=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+function detectBPM(buffer){
+  var data=buffer.getChannelData(0);var sr=buffer.sampleRate;
+  // Compute energy in short windows
+  var winSize=Math.floor(sr*0.02); // 20ms windows
+  var hopSize=Math.floor(winSize/2);
+  var numFrames=Math.floor((data.length-winSize)/hopSize);
+  var energy=new Float32Array(numFrames);
+  for(var i=0;i<numFrames;i++){
+    var sum=0;var offset=i*hopSize;
+    for(var j=0;j<winSize;j++) sum+=data[offset+j]*data[offset+j];
+    energy[i]=sum/winSize;
+  }
+  // Spectral flux (onset detection)
+  var flux=new Float32Array(numFrames);
+  for(var i=1;i<numFrames;i++){
+    var diff=energy[i]-energy[i-1];
+    flux[i]=diff>0?diff:0;
+  }
+  // Find peaks in flux
+  var threshold=0;
+  for(var i=0;i<flux.length;i++) threshold+=flux[i];
+  threshold=(threshold/flux.length)*1.5;
+  var onsets=[];
+  for(var i=1;i<flux.length-1;i++){
+    if(flux[i]>threshold&&flux[i]>flux[i-1]&&flux[i]>=flux[i+1]){
+      onsets.push(i*hopSize/sr);
+    }
+  }
+  if(onsets.length<2) return 0;
+  // Calculate intervals between onsets
+  var intervals=[];
+  for(var i=1;i<onsets.length;i++) intervals.push(onsets[i]-onsets[i-1]);
+  // Cluster intervals to find most common beat period
+  var bpmCounts={};
+  for(var i=0;i<intervals.length;i++){
+    var bpmEst=60/intervals[i];
+    // Normalize to 60-180 range
+    while(bpmEst>180) bpmEst/=2;
+    while(bpmEst<60) bpmEst*=2;
+    var rounded=Math.round(bpmEst);
+    bpmCounts[rounded]=(bpmCounts[rounded]||0)+1;
+  }
+  var bestBpm=0,bestCount=0;
+  for(var b in bpmCounts){
+    if(bpmCounts[b]>bestCount){bestCount=bpmCounts[b];bestBpm=+b}
+  }
+  return bestBpm;
+}
+
+// ── ROOT NOTE DETECTION (autocorrelation pitch detection) ──
+function detectRootNote(buffer){
+  var data=buffer.getChannelData(0);var sr=buffer.sampleRate;
+  // Use a chunk from the middle of the sample for stability
+  var chunkSize=Math.min(8192,data.length);
+  var start=Math.floor((data.length-chunkSize)/2);
+  var chunk=new Float32Array(chunkSize);
+  for(var i=0;i<chunkSize;i++) chunk[i]=data[start+i];
+  // Autocorrelation
+  var minLag=Math.floor(sr/2000); // max 2000Hz
+  var maxLag=Math.floor(sr/50);   // min 50Hz
+  if(maxLag>chunkSize/2) maxLag=Math.floor(chunkSize/2);
+  var bestLag=0,bestCorr=-1;
+  for(var lag=minLag;lag<maxLag;lag++){
+    var corr=0,norm1=0,norm2=0;
+    for(var i=0;i<chunkSize-lag;i++){
+      corr+=chunk[i]*chunk[i+lag];
+      norm1+=chunk[i]*chunk[i];
+      norm2+=chunk[i+lag]*chunk[i+lag];
+    }
+    var norm=Math.sqrt(norm1*norm2);
+    if(norm>0) corr=corr/norm;
+    if(corr>bestCorr){bestCorr=corr;bestLag=lag}
+  }
+  if(bestCorr<0.2||bestLag===0) return null; // No clear pitch
+  var freq=sr/bestLag;
+  // Convert frequency to note name + octave
+  var noteNum=12*(Math.log2(freq/440))+69;
+  var note=Math.round(noteNum);
+  var noteName=NOTE_NAMES[note%12];
+  var octave=Math.floor(note/12)-1;
+  return{freq:Math.round(freq),note:noteName,octave:octave,name:noteName+octave,confidence:bestCorr};
+}
+
+// ── UPDATE SAMPLE INFO DISPLAY ──
+function updateSampleInfo(buffer){
+  var infoBar=document.getElementById("sampleInfo");
+  var bpmEl=document.getElementById("sampleBpm");
+  var keyEl=document.getElementById("sampleKey");
+  var durEl=document.getElementById("sampleDur");
+  if(!buffer){infoBar.classList.add("hidden");return}
+  infoBar.classList.remove("hidden");
+  // Duration
+  var dur=buffer.duration;
+  var dm=Math.floor(dur/60);var ds=Math.floor(dur%60);var dms=Math.floor((dur%1)*10);
+  durEl.innerHTML='DUR: <span>'+(dm>0?dm+'m ':'')+(ds)+'.'+dms+'s</span>';
+  // BPM detection
+  bpmEl.innerHTML='BPM: <span>...</span>';
+  keyEl.innerHTML='KEY: <span>...</span>';
+  setTimeout(function(){
+    var detectedBpm=detectBPM(buffer);
+    bpmEl.innerHTML='BPM: <span>'+(detectedBpm>0?'~'+detectedBpm:'N/A')+'</span>';
+    var rootNote=detectRootNote(buffer);
+    if(rootNote&&rootNote.confidence>0.3){
+      keyEl.innerHTML='KEY: <span>'+rootNote.name+' ('+rootNote.freq+'Hz)</span>';
+    } else {
+      keyEl.innerHTML='KEY: <span>N/A</span>';
+    }
+  },100);
+}
+
 function loadFileTopad(file,pi){
   var ne=document.getElementById("padName"+pi),on=ne.textContent;ne.textContent="LOADING...";ne.style.color="#ffd23f";
   if(file.size>MAX_FILE_MB*1024*1024){ne.textContent="TOO BIG";ne.style.color="#ff3c5f";setTimeout(function(){ne.textContent=on;ne.style.color=""},2000);return}
@@ -373,7 +495,7 @@ function loadFileTopad(file,pi){
         for(var k of waveformCache.keys())if(k.startsWith(pi+"-"))waveformCache.delete(k);
         pads[pi].buffer=buf;pads[pi].name=file.name.replace(/\.[^/.]+$/,"").slice(0,10);pads[pi].startMarker=0;pads[pi].endMarker=1;
         ne.textContent=pads[pi].name;ne.style.color="";document.getElementById("padInd"+pi).classList.add("loaded");
-        if(pi===selectedPad)requestAnimationFrame(drawWaveform);updateFooter();
+        if(pi===selectedPad){requestAnimationFrame(drawWaveform);updateSampleInfo(buf)}updateFooter();
         // Auto-switch to SAMPLE mode to show the waveform
         if(currentMode!=="SAMPLE"){currentMode="SAMPLE";document.querySelectorAll(".mode-btn").forEach(function(b){b.classList.toggle("active",b.dataset.mode==="SAMPLE")});updateModeUI()}
       },function(){ne.textContent="ERROR";ne.style.color="#ff3c5f";setTimeout(function(){ne.textContent=on;ne.style.color=""},2000)});
@@ -722,7 +844,7 @@ function loadPresetSound(preset){
       ac.decodeAudioData(xhr.response,function(buffer){
         console.log("PRESET: Decoded "+preset.name+" ("+buffer.duration.toFixed(1)+"s)");ac.close();
         var pad=allBanks[preset.bank][preset.pad];pad.buffer=buffer;pad.name=preset.name;pad.startMarker=0;pad.endMarker=1;
-        if(currentBank===preset.bank){var ne=document.getElementById("padName"+preset.pad);if(ne)ne.textContent=preset.name;var ie=document.getElementById("padInd"+preset.pad);if(ie)ie.classList.add("loaded");if(preset.pad===selectedPad)requestAnimationFrame(drawWaveform)}
+        if(currentBank===preset.bank){var ne=document.getElementById("padName"+preset.pad);if(ne)ne.textContent=preset.name;var ie=document.getElementById("padInd"+preset.pad);if(ie)ie.classList.add("loaded");if(preset.pad===selectedPad){requestAnimationFrame(drawWaveform);updateSampleInfo(buffer)}}
         updateFooter();
       },function(err){console.log("PRESET: Decode failed for "+url,err);ac.close();extIdx++;tryNext()});
     };
