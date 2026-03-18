@@ -517,11 +517,50 @@ function doChop(){
     var pos=0;
     for(var i=0;i<numSlices;i++){var s=weights[i]/total;slices.push({start:pos,end:pos+s});pos+=s}
   } else if(chopMode==="random"){
-    // RANDOM — random slice points, sorted
-    var points=[0];
-    for(var i=0;i<numSlices-1;i++) points.push(Math.random());
-    points.push(1);points.sort(function(a,b){return a-b});
-    for(var i=0;i<numSlices;i++) slices.push({start:points[i],end:points[i+1]});
+    // RANDOM — cut the cake into equal pieces, physically rearrange them
+    // Creates a NEW audio buffer with slices in shuffled order
+    var ctx2=getAudioCtx();
+    var origBuf=pad.buffer;
+    var numCh=origBuf.numberOfChannels;
+    var sr=origBuf.sampleRate;
+    var totalLen=origBuf.length;
+    var sliceLen=Math.floor(totalLen/numSlices);
+
+    // Build shuffle order using Fisher-Yates
+    var order=[];
+    for(var i=0;i<numSlices;i++) order.push(i);
+    for(var i=numSlices-1;i>0;i--){
+      var j=Math.floor(Math.random()*(i+1));
+      var temp=order[i];order[i]=order[j];order[j]=temp;
+    }
+
+    // Create new buffer with rearranged audio
+    var newBuf=ctx2.createBuffer(numCh,sliceLen*numSlices,sr);
+    for(var ch=0;ch<numCh;ch++){
+      var newData=newBuf.getChannelData(ch);
+      var origData=origBuf.getChannelData(ch);
+      for(var i=0;i<numSlices;i++){
+        var srcStart=order[i]*sliceLen;
+        var destStart=i*sliceLen;
+        for(var s=0;s<sliceLen;s++){
+          newData[destStart+s]=origData[srcStart+s]||0;
+        }
+      }
+    }
+
+    // Now chop the new rearranged buffer evenly across pads
+    var sz=1/numSlices;
+    for(var i=0;i<numSlices;i++){
+      pads[i].buffer=newBuf;
+      pads[i].name="R"+(order[i]+1)+"→"+(i+1);
+      pads[i].startMarker=i*sz;
+      pads[i].endMarker=(i+1)*sz;
+      document.getElementById("padName"+i).textContent=pads[i].name;
+      document.getElementById("padInd"+i).classList.add("loaded");
+      for(var k of waveformCache.keys())if(k.startsWith(i+"-"))waveformCache.delete(k);
+    }
+    drawWaveform();
+    return; // skip the normal apply below
   } else if(chopMode==="transient"){
     // TRANSIENT — detect loud parts and chop around them
     var data=pad.buffer.getChannelData(0);
