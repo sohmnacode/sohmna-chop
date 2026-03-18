@@ -595,7 +595,28 @@ document.addEventListener("mouseup",function(){draggingMarker=null});
 
 // KNOBS
 var activeKnob=null,knobStartY=0,knobStartVal=0;
-document.querySelectorAll(".knob").forEach(function(el){el.addEventListener("mousedown",function(e){activeKnob=el.dataset.param;knobStartY=e.clientY;knobStartVal=getKV(activeKnob);e.preventDefault()})});
+document.querySelectorAll(".knob").forEach(function(el){
+  el.addEventListener("mousedown",function(e){if(e.button===0){activeKnob=el.dataset.param;knobStartY=e.clientY;knobStartVal=getKV(activeKnob)}e.preventDefault()});
+  el.addEventListener("contextmenu",function(e){e.preventDefault();e.stopPropagation();resetKnob(el.dataset.param);return false});
+});
+
+function resetKnob(param){
+  var pad=pads[selectedPad];
+  var defaults={volume:80,pitch:50,decay:70,swing:0,master:85,reverbSize:40,reverbMix:30,delayTime:35,delayFeedback:25,delayMix:20,distDrive:30,filterCutoff:70,filterReso:20};
+  if(param==="bpm"){
+    // Reset to detected BPM if available, otherwise 120
+    var detected=pad.detectedBpm;
+    bpm=(detected>0)?detected:120;
+    if(isPlaying){stopSequencer();startSequencer()}
+  } else if(param==="master"){
+    masterVol=85;if(masterGain)masterGain.gain.value=masterVol/100;
+  } else if(param==="swing"){
+    swing=0;
+  } else if(defaults[param]!==undefined){
+    setKV(param,defaults[param]);
+  }
+  updateKnobDisplays();updateFooter();
+}
 document.addEventListener("mousemove",function(e){if(!activeKnob)return;var k=document.querySelector('.knob[data-param="'+activeKnob+'"]');if(!k)return;var mn=+k.dataset.min,mx=+k.dataset.max;setKV(activeKnob,Math.round(Math.min(mx,Math.max(mn,knobStartVal+(knobStartY-e.clientY)*((mx-mn)/150)))));updateKnobDisplays()});
 document.addEventListener("mouseup",function(){activeKnob=null});
 function getKV(p){var pad=pads[selectedPad];var map={volume:pad.volume,pitch:pad.pitch,decay:pad.decay,bpm:bpm,swing:swing,master:masterVol,reverbSize:pad.reverbSize,reverbMix:pad.reverbMix,delayTime:pad.delayTime,delayFeedback:pad.delayFeedback,delayMix:pad.delayMix,distDrive:pad.distDrive,filterCutoff:pad.filterCutoff,filterReso:pad.filterReso};return map[p]!==undefined?map[p]:50}
