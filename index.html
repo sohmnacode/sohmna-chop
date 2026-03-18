@@ -574,13 +574,8 @@ function updateSampleInfo(buffer,isNewLoad){
       }
     },100);
   } else {
-    // PAD SELECTION — just display stored info, don't change BPM knob
-    var pad=pads[selectedPad];
-    if(pad.detectedBpm>0){
-      bpmEl.innerHTML='BPM: <span>~'+pad.detectedBpm+'</span>';
-    } else {
-      bpmEl.innerHTML='BPM: <span>N/A</span>';
-    }
+    // PAD SELECTION — show current BPM knob value, not detected
+    bpmEl.innerHTML='BPM: <span>'+bpm+'</span>';
     keyEl.innerHTML='KEY: <span>---</span>';
     // Re-detect key display only (lightweight)
     setTimeout(function(){
