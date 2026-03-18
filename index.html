@@ -463,9 +463,12 @@ function updateModeUI(){
   var sg=document.getElementById("seqGrid"),cv=document.getElementById("waveformCanvas"),ph=document.getElementById("displayPlaceholder"),act=document.getElementById("actionButtons"),ag=document.getElementById("arrangeGrid"),fxr=document.getElementById("fxRow");
   var h='<button class="action-btn btn-preview '+(isPreviewing?'on':'')+'" id="btnPreview">'+(isPreviewing?'■ STOP':'▶ PREVIEW')+'</button>';
   h+='<button class="action-btn btn-metro '+(metronomeOn?'on':'')+'" id="btnMetro">🔔 METRO</button>';
+  h+='<button class="action-btn btn-rec '+(isRecording?'active':'')+'" id="btnRec">⏺ REC</button>';
+  h+='<button class="action-btn '+(isPlaying?'btn-stop':'btn-play')+'" id="btnPlayStop">'+(isPlaying?'■ STOP':'▶ PLAY')+'</button>';
+  h+='<button class="btn-small" id="btnPrevPat">◀</button><button class="btn-small" id="btnNextPat">▶</button>';
   h+='<button class="action-btn btn-load" id="btnLoad">LOAD</button><button class="action-btn btn-save" id="btnSave">SAVE</button><button class="action-btn btn-open" id="btnOpen">OPEN</button><button class="action-btn btn-export" id="btnExport">EXPORT</button>';
   if(currentMode==="CHOP")h='<button class="action-btn btn-chop" id="btnChopEven">EVEN</button><button class="action-btn btn-chop" id="btnChopSwing">SWING</button><button class="action-btn btn-chop" id="btnChopRandom">RANDOM</button><button class="action-btn btn-chop" id="btnChopTransient">DETECT</button><button class="btn-small" id="btnSliceUp">+</button><button class="btn-small" id="btnSliceDown">−</button><span style="font-size:8px;color:#ffd23f;margin:0 2px">÷'+chopSlices+'</span>'+h;
-  if(currentMode==="SEQ"||currentMode==="SONG")h+='<button class="action-btn btn-rec '+(isRecording?'active':'')+'" id="btnRec">⏺ REC</button><button class="action-btn '+(isPlaying?'btn-stop':'btn-play')+'" id="btnPlayStop">'+(isPlaying?'■ STOP':'▶ PLAY')+'</button><button class="action-btn btn-clear" id="btnClear">CLR</button><button class="btn-small" id="btnPrevPat">◀</button><button class="btn-small" id="btnNextPat">▶</button>';
+  if(currentMode==="SEQ"||currentMode==="SONG")h+='<button class="action-btn btn-clear" id="btnClear">CLR</button>';
   act.innerHTML=h;
   document.getElementById("btnPreview").addEventListener("click",togglePreview);
   document.getElementById("btnMetro").addEventListener("click",function(){metronomeOn=!metronomeOn;updateModeUI()});
@@ -473,17 +476,17 @@ function updateModeUI(){
   if(document.getElementById("btnSave"))document.getElementById("btnSave").addEventListener("click",saveSong);
   if(document.getElementById("btnOpen"))document.getElementById("btnOpen").addEventListener("click",function(){document.getElementById("songFileInput").click()});
   document.getElementById("btnExport").addEventListener("click",exportSequence);
+  document.getElementById("btnPlayStop").addEventListener("click",toggleSequencer);
+  document.getElementById("btnRec").addEventListener("click",toggleRecord);
+  document.getElementById("btnPrevPat").addEventListener("click",function(){switchPattern(-1)});
+  document.getElementById("btnNextPat").addEventListener("click",function(){switchPattern(1)});
   if(document.getElementById("btnChopEven"))document.getElementById("btnChopEven").addEventListener("click",function(){chopMode="even";doChop()});
   if(document.getElementById("btnChopSwing"))document.getElementById("btnChopSwing").addEventListener("click",function(){chopMode="swing";doChop()});
   if(document.getElementById("btnChopRandom"))document.getElementById("btnChopRandom").addEventListener("click",function(){chopMode="random";doChop()});
   if(document.getElementById("btnChopTransient"))document.getElementById("btnChopTransient").addEventListener("click",function(){chopMode="transient";doChop()});
   if(document.getElementById("btnSliceUp"))document.getElementById("btnSliceUp").addEventListener("click",function(){chopSlices=Math.min(16,chopSlices+1);updateModeUI();drawWaveform()});
   if(document.getElementById("btnSliceDown"))document.getElementById("btnSliceDown").addEventListener("click",function(){chopSlices=Math.max(2,chopSlices-1);updateModeUI();drawWaveform()});
-  if(document.getElementById("btnPlayStop"))document.getElementById("btnPlayStop").addEventListener("click",toggleSequencer);
-  if(document.getElementById("btnRec"))document.getElementById("btnRec").addEventListener("click",toggleRecord);
   if(document.getElementById("btnClear"))document.getElementById("btnClear").addEventListener("click",clearPattern);
-  if(document.getElementById("btnPrevPat"))document.getElementById("btnPrevPat").addEventListener("click",function(){switchPattern(-1)});
-  if(document.getElementById("btnNextPat"))document.getElementById("btnNextPat").addEventListener("click",function(){switchPattern(1)});
   sg.classList.add("hidden");cv.classList.add("hidden");ph.classList.add("hidden");ag.classList.add("hidden");fxr.classList.add("hidden");
   if(currentMode==="SEQ"){sg.classList.remove("hidden");buildSeqGrid()}
   else if(currentMode==="SONG"){ag.classList.remove("hidden");buildArrangeGrid();songMode=true}
@@ -656,7 +659,7 @@ var PRESETS=[
   // {bank:0,pad:8,file:"a9-FILENAME",name:"DISPLAY NAME"},
   // {bank:0,pad:9,file:"a10-FILENAME",name:"DISPLAY NAME"},
   // {bank:0,pad:10,file:"a11-FILENAME",name:"DISPLAY NAME"},
-  {bank:0,pad:11,file:"12-GAWD",name:"GAWD FX"}
+  {bank:0,pad:11,file:"12-GAWD",name:"GAWD"}
 
   // ── BANK B — BASS/KEYS (bank:1) ──
   // {bank:1,pad:0,file:"b1-FILENAME",name:"DISPLAY NAME"},
