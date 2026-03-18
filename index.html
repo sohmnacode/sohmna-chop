@@ -773,11 +773,70 @@ window.addEventListener("resize",function(){if(currentMode!=="SEQ"&&currentMode!
 var PRESET_BASE_URL="https://sohmnacode.github.io/sohmna-chop/sounds/";
 
 var PRESETS=[
-  // Bank A — only your 4 uploaded sounds
+  // ══════════════════════════════════════════════════════════
+  //  HOW TO ADD SOUNDS:
+  //  1. Upload your .mp3 file to the sounds/ folder on GitHub
+  //  2. Remove the // at the start of the line below
+  //  3. Replace FILENAME with your exact filename (no .mp3)
+  //  4. Replace DISPLAY NAME with what you want on the pad
+  //  5. Commit changes
+  // ══════════════════════════════════════════════════════════
+
+  // ── BANK A — DRUMS (bank:0) ──
   {bank:0,pad:0,file:"a1-Kick",name:"Kick"},
   {bank:0,pad:1,file:"a2-Snare",name:"Snare"},
   {bank:0,pad:2,file:"a3-Hi Hat",name:"Hi Hat"},
   {bank:0,pad:3,file:"a4-Juice 808",name:"Juice 808"}
+  // {bank:0,pad:4,file:"a5-FILENAME",name:"DISPLAY NAME"},
+  // {bank:0,pad:5,file:"a6-FILENAME",name:"DISPLAY NAME"},
+  // {bank:0,pad:6,file:"a7-FILENAME",name:"DISPLAY NAME"},
+  // {bank:0,pad:7,file:"a8-FILENAME",name:"DISPLAY NAME"},
+  // {bank:0,pad:8,file:"a9-FILENAME",name:"DISPLAY NAME"},
+  // {bank:0,pad:9,file:"a10-FILENAME",name:"DISPLAY NAME"},
+  // {bank:0,pad:10,file:"a11-FILENAME",name:"DISPLAY NAME"},
+  // {bank:0,pad:11,file:"a12-FILENAME",name:"DISPLAY NAME"},
+
+  // ── BANK B — BASS/KEYS (bank:1) ──
+  // {bank:1,pad:0,file:"b1-FILENAME",name:"DISPLAY NAME"},
+  // {bank:1,pad:1,file:"b2-FILENAME",name:"DISPLAY NAME"},
+  // {bank:1,pad:2,file:"b3-FILENAME",name:"DISPLAY NAME"},
+  // {bank:1,pad:3,file:"b4-FILENAME",name:"DISPLAY NAME"},
+  // {bank:1,pad:4,file:"b5-FILENAME",name:"DISPLAY NAME"},
+  // {bank:1,pad:5,file:"b6-FILENAME",name:"DISPLAY NAME"},
+  // {bank:1,pad:6,file:"b7-FILENAME",name:"DISPLAY NAME"},
+  // {bank:1,pad:7,file:"b8-FILENAME",name:"DISPLAY NAME"},
+  // {bank:1,pad:8,file:"b9-FILENAME",name:"DISPLAY NAME"},
+  // {bank:1,pad:9,file:"b10-FILENAME",name:"DISPLAY NAME"},
+  // {bank:1,pad:10,file:"b11-FILENAME",name:"DISPLAY NAME"},
+  // {bank:1,pad:11,file:"b12-FILENAME",name:"DISPLAY NAME"},
+
+  // ── BANK C — MELODIC (bank:2) ──
+  // {bank:2,pad:0,file:"c1-FILENAME",name:"DISPLAY NAME"},
+  // {bank:2,pad:1,file:"c2-FILENAME",name:"DISPLAY NAME"},
+  // {bank:2,pad:2,file:"c3-FILENAME",name:"DISPLAY NAME"},
+  // {bank:2,pad:3,file:"c4-FILENAME",name:"DISPLAY NAME"},
+  // {bank:2,pad:4,file:"c5-FILENAME",name:"DISPLAY NAME"},
+  // {bank:2,pad:5,file:"c6-FILENAME",name:"DISPLAY NAME"},
+  // {bank:2,pad:6,file:"c7-FILENAME",name:"DISPLAY NAME"},
+  // {bank:2,pad:7,file:"c8-FILENAME",name:"DISPLAY NAME"},
+  // {bank:2,pad:8,file:"c9-FILENAME",name:"DISPLAY NAME"},
+  // {bank:2,pad:9,file:"c10-FILENAME",name:"DISPLAY NAME"},
+  // {bank:2,pad:10,file:"c11-FILENAME",name:"DISPLAY NAME"},
+  // {bank:2,pad:11,file:"c12-FILENAME",name:"DISPLAY NAME"},
+
+  // ── BANK D — FX/PERC (bank:3) ──
+  // {bank:3,pad:0,file:"d1-FILENAME",name:"DISPLAY NAME"},
+  // {bank:3,pad:1,file:"d2-FILENAME",name:"DISPLAY NAME"},
+  // {bank:3,pad:2,file:"d3-FILENAME",name:"DISPLAY NAME"},
+  // {bank:3,pad:3,file:"d4-FILENAME",name:"DISPLAY NAME"},
+  // {bank:3,pad:4,file:"d5-FILENAME",name:"DISPLAY NAME"},
+  // {bank:3,pad:5,file:"d6-FILENAME",name:"DISPLAY NAME"},
+  // {bank:3,pad:6,file:"d7-FILENAME",name:"DISPLAY NAME"},
+  // {bank:3,pad:7,file:"d8-FILENAME",name:"DISPLAY NAME"},
+  // {bank:3,pad:8,file:"d9-FILENAME",name:"DISPLAY NAME"},
+  // {bank:3,pad:9,file:"d10-FILENAME",name:"DISPLAY NAME"},
+  // {bank:3,pad:10,file:"d11-FILENAME",name:"DISPLAY NAME"},
+  // {bank:3,pad:11,file:"d12-FILENAME",name:"DISPLAY NAME"}
 ];
 
 function loadPresetSound(preset){
