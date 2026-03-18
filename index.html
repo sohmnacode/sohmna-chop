@@ -802,8 +802,8 @@ var PRESETS=[
 ];
 
 function loadPresetSound(preset){
-  // Try WAV first, then MP3
-  var extensions=["wav","mp3"];
+  // Try MP3 first, then WAV
+  var extensions=["mp3","wav"];
   var extIdx=0;
 
   function tryNext(){
