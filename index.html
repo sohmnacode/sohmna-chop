@@ -292,7 +292,7 @@ function selectPad(i){
     else if(idx!==i&&bar)bar.remove();
   });
   updateKnobDisplays();if(currentMode==="FX")updateFXUI();updateFooter();
-  updateSampleInfo(pads[i].buffer);
+  updateSampleInfo(pads[i].buffer,false);
   if(currentMode!=="SEQ"&&currentMode!=="SONG")drawWaveform();
 }
 
@@ -538,7 +538,7 @@ function detectRootNote(buffer){
 }
 
 // ── UPDATE SAMPLE INFO DISPLAY ──
-function updateSampleInfo(buffer){
+function updateSampleInfo(buffer,isNewLoad){
   var infoBar=document.getElementById("sampleInfo");
   var bpmEl=document.getElementById("sampleBpm");
   var keyEl=document.getElementById("sampleKey");
@@ -549,28 +549,49 @@ function updateSampleInfo(buffer){
   var dur=buffer.duration;
   var dm=Math.floor(dur/60);var ds=Math.floor(dur%60);var dms=Math.floor((dur%1)*10);
   durEl.innerHTML='DUR: <span>'+(dm>0?dm+'m ':'')+(ds)+'.'+dms+'s</span>';
-  // BPM detection
-  bpmEl.innerHTML='BPM: <span>...</span>';
-  keyEl.innerHTML='KEY: <span>...</span>';
-  setTimeout(function(){
-    var detectedBpm=detectBPM(buffer);
-    if(detectedBpm>0&&detectedBpm>=60&&detectedBpm<=200){
-      pads[selectedPad].detectedBpm=detectedBpm;
-      bpm=detectedBpm;
-      if(masterGain&&isPlaying){stopSequencer();startSequencer()}
-      updateKnobDisplays();updateFooter();
-      bpmEl.innerHTML='BPM: <span>~'+detectedBpm+' ✓</span>';
+
+  if(isNewLoad){
+    // FIRST LOAD ONLY — detect BPM and key, set the knob once
+    bpmEl.innerHTML='BPM: <span>...</span>';
+    keyEl.innerHTML='KEY: <span>...</span>';
+    setTimeout(function(){
+      var detectedBpm=detectBPM(buffer);
+      if(detectedBpm>0&&detectedBpm>=60&&detectedBpm<=200){
+        pads[selectedPad].detectedBpm=detectedBpm;
+        bpm=detectedBpm;
+        if(masterGain&&isPlaying){stopSequencer();startSequencer()}
+        updateKnobDisplays();updateFooter();
+        bpmEl.innerHTML='BPM: <span>~'+detectedBpm+' ✓</span>';
+      } else {
+        pads[selectedPad].detectedBpm=0;
+        bpmEl.innerHTML='BPM: <span>'+(detectedBpm>0?'~'+detectedBpm:'N/A')+'</span>';
+      }
+      var rootNote=detectRootNote(buffer);
+      if(rootNote&&rootNote.confidence>0.3){
+        keyEl.innerHTML='KEY: <span>'+rootNote.name+' ('+rootNote.freq+'Hz)</span>';
+      } else {
+        keyEl.innerHTML='KEY: <span>N/A</span>';
+      }
+    },100);
+  } else {
+    // PAD SELECTION — just display stored info, don't change BPM knob
+    var pad=pads[selectedPad];
+    if(pad.detectedBpm>0){
+      bpmEl.innerHTML='BPM: <span>~'+pad.detectedBpm+'</span>';
     } else {
-      pads[selectedPad].detectedBpm=0;
-      bpmEl.innerHTML='BPM: <span>'+(detectedBpm>0?'~'+detectedBpm:'N/A')+'</span>';
+      bpmEl.innerHTML='BPM: <span>N/A</span>';
     }
-    var rootNote=detectRootNote(buffer);
-    if(rootNote&&rootNote.confidence>0.3){
-      keyEl.innerHTML='KEY: <span>'+rootNote.name+' ('+rootNote.freq+'Hz)</span>';
-    } else {
-      keyEl.innerHTML='KEY: <span>N/A</span>';
-    }
-  },100);
+    keyEl.innerHTML='KEY: <span>---</span>';
+    // Re-detect key display only (lightweight)
+    setTimeout(function(){
+      var rootNote=detectRootNote(buffer);
+      if(rootNote&&rootNote.confidence>0.3){
+        keyEl.innerHTML='KEY: <span>'+rootNote.name+' ('+rootNote.freq+'Hz)</span>';
+      } else {
+        keyEl.innerHTML='KEY: <span>N/A</span>';
+      }
+    },50);
+  }
 }
 
 function loadFileTopad(file,pi){
@@ -584,7 +605,7 @@ function loadFileTopad(file,pi){
         for(var k of waveformCache.keys())if(k.startsWith(pi+"-"))waveformCache.delete(k);
         pads[pi].buffer=buf;pads[pi].name=file.name.replace(/\.[^/.]+$/,"").slice(0,10);pads[pi].startMarker=0;pads[pi].endMarker=1;
         ne.textContent=pads[pi].name;ne.style.color="";document.getElementById("padInd"+pi).classList.add("loaded");
-        if(pi===selectedPad){requestAnimationFrame(drawWaveform);updateSampleInfo(buf)}updateFooter();
+        if(pi===selectedPad){requestAnimationFrame(drawWaveform);updateSampleInfo(buf,true)}updateFooter();
         // Auto-switch to SAMPLE mode to show the waveform
         if(currentMode!=="SAMPLE"){currentMode="SAMPLE";document.querySelectorAll(".mode-btn").forEach(function(b){b.classList.toggle("active",b.dataset.mode==="SAMPLE")});updateModeUI()}
       },function(){ne.textContent="ERROR";ne.style.color="#ff3c5f";setTimeout(function(){ne.textContent=on;ne.style.color=""},2000)});
@@ -901,7 +922,7 @@ var PRESETS=[
   // {bank:0,pad:8,file:"a9-FILENAME",name:"DISPLAY NAME"},
   // {bank:0,pad:9,file:"a10-FILENAME",name:"DISPLAY NAME"},
   // {bank:0,pad:10,file:"a11-FILENAME",name:"DISPLAY NAME"},
-  {bank:0,pad:11,file:"a12-GAWD",name:"GAWD"}
+  {bank:0,pad:11,file:"12-GAWD",name:"GAWD"}
 
   // ── BANK B — BASS/KEYS (bank:1) ──
   // {bank:1,pad:0,file:"b1-FILENAME",name:"DISPLAY NAME"},
@@ -962,7 +983,7 @@ function loadPresetSound(preset){
         var pad=allBanks[preset.bank][preset.pad];pad.buffer=buffer;pad.name=preset.name;pad.startMarker=0;pad.endMarker=1;
         // Detect BPM for preset sounds too
         try{var db=detectBPM(buffer);if(db>0&&db>=60&&db<=200)pad.detectedBpm=db}catch(e){}
-        if(currentBank===preset.bank){var ne=document.getElementById("padName"+preset.pad);if(ne)ne.textContent=preset.name;var ie=document.getElementById("padInd"+preset.pad);if(ie)ie.classList.add("loaded");if(preset.pad===selectedPad){requestAnimationFrame(drawWaveform);updateSampleInfo(buffer)}}
+        if(currentBank===preset.bank){var ne=document.getElementById("padName"+preset.pad);if(ne)ne.textContent=preset.name;var ie=document.getElementById("padInd"+preset.pad);if(ie)ie.classList.add("loaded");if(preset.pad===selectedPad){requestAnimationFrame(drawWaveform);updateSampleInfo(buffer,false)}}
         updateFooter();
       },function(err){console.log("PRESET: Decode failed for "+url,err);ac.close();extIdx++;tryNext()});
     };
