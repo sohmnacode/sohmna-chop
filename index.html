@@ -121,7 +121,8 @@ body{background:#050507;color:#ccc;font-family:'JetBrains Mono','SF Mono',monosp
   <div class="header">
     <div class="header-left"><div class="status-dot" id="statusDot"></div><span class="logo">Sohmna Chop</span><span class="version">OREN-I</span></div>
     <div class="mode-buttons">
-      <button class="mode-btn active" data-mode="PAD">PAD</button>
+      <button class="mode-btn active" data-mode="SAMPLE">SAMPLE</button>
+      <button class="mode-btn" data-mode="PAD">PAD</button>
       <button class="mode-btn" data-mode="CHOP">CHOP</button>
       <button class="mode-btn" data-mode="SEQ">SEQ</button>
       <button class="mode-btn" data-mode="FX">FX</button>
@@ -139,7 +140,7 @@ body{background:#050507;color:#ccc;font-family:'JetBrains Mono','SF Mono',monosp
   <div class="display-area">
     <div class="display" id="display">
       <canvas id="waveformCanvas"></canvas>
-      <div class="display-placeholder" id="displayPlaceholder">DROP SAMPLE OR CLICK LOAD — KEYS: 1-4 / Q-R / A-F</div>
+      <div class="display-placeholder" id="displayPlaceholder">DROP SAMPLE OR CLICK LOAD — SAMPLE MODE</div>
       <div class="seq-grid hidden" id="seqGrid"></div>
       <div class="arrange-grid hidden" id="arrangeGrid"></div>
     </div>
@@ -200,7 +201,7 @@ var PAD_COLORS=[{base:"#ff3c5f",glow:"rgba(255,60,95,0.6)"},{base:"#ff6b35",glow
 var KEY_MAP=["1","2","3","4","q","w","e","r","a","s","d","f"];
 var DEMO_SOUNDS=[{name:"Kick",freq:60,type:"sine",decay:.3},{name:"Snare",freq:200,type:"triangle",decay:.15},{name:"HiHat",freq:800,type:"square",decay:.05},{name:"Clap",freq:400,type:"sawtooth",decay:.1},{name:"Tom Lo",freq:80,type:"sine",decay:.25},{name:"Tom Hi",freq:160,type:"sine",decay:.2},{name:"Rim",freq:600,type:"triangle",decay:.08},{name:"Cowbell",freq:540,type:"square",decay:.12},{name:"Perc 1",freq:320,type:"triangle",decay:.1},{name:"Perc 2",freq:440,type:"sawtooth",decay:.08},{name:"FX 1",freq:1200,type:"sine",decay:.4},{name:"FX 2",freq:260,type:"sawtooth",decay:.35}];
 
-var audioCtx=null,currentMode="PAD",selectedPad=0;
+var audioCtx=null,currentMode="SAMPLE",selectedPad=0;
 var bpm=120,swing=0,masterVol=85;
 var isPlaying=false,currentStep=-1,seqInterval=null,chopSlices=8;
 var isRecording=false,patternLength=16,currentPattern=0,metronomeOn=false;
@@ -373,6 +374,8 @@ function loadFileTopad(file,pi){
         pads[pi].buffer=buf;pads[pi].name=file.name.replace(/\.[^/.]+$/,"").slice(0,10);pads[pi].startMarker=0;pads[pi].endMarker=1;
         ne.textContent=pads[pi].name;ne.style.color="";document.getElementById("padInd"+pi).classList.add("loaded");
         if(pi===selectedPad)requestAnimationFrame(drawWaveform);updateFooter();
+        // Auto-switch to SAMPLE mode to show the waveform
+        if(currentMode!=="SAMPLE"){currentMode="SAMPLE";document.querySelectorAll(".mode-btn").forEach(function(b){b.classList.toggle("active",b.dataset.mode==="SAMPLE")});updateModeUI()}
       },function(){ne.textContent="ERROR";ne.style.color="#ff3c5f";setTimeout(function(){ne.textContent=on;ne.style.color=""},2000)});
     }catch(err){ne.textContent="ERROR";ne.style.color="#ff3c5f";setTimeout(function(){ne.textContent=on;ne.style.color=""},2000)}
   };
@@ -488,7 +491,8 @@ function updateModeUI(){
   if(document.getElementById("btnSliceDown"))document.getElementById("btnSliceDown").addEventListener("click",function(){chopSlices=Math.max(2,chopSlices-1);updateModeUI();drawWaveform()});
   if(document.getElementById("btnClear"))document.getElementById("btnClear").addEventListener("click",clearPattern);
   sg.classList.add("hidden");cv.classList.add("hidden");ph.classList.add("hidden");ag.classList.add("hidden");fxr.classList.add("hidden");
-  if(currentMode==="SEQ"){sg.classList.remove("hidden");buildSeqGrid()}
+  if(currentMode==="SAMPLE"){cv.classList.remove("hidden");drawWaveform();songMode=false}
+  else if(currentMode==="SEQ"){sg.classList.remove("hidden");buildSeqGrid()}
   else if(currentMode==="SONG"){ag.classList.remove("hidden");buildArrangeGrid();songMode=true}
   else if(currentMode==="FX"){cv.classList.remove("hidden");fxr.classList.remove("hidden");drawWaveform();updateFXUI()}
   else{cv.classList.remove("hidden");drawWaveform();songMode=false}
