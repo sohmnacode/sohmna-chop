@@ -102,6 +102,10 @@ body{background:#050507;color:#ccc;font-family:'JetBrains Mono','SF Mono',monosp
 .btn-reverse.on{background:linear-gradient(180deg,rgba(255,138,101,.3),rgba(255,138,101,.1));border-color:#ff8a65;color:#fff;box-shadow:0 0 10px rgba(255,138,101,0.2)}
 .btn-speed{background:linear-gradient(180deg,rgba(171,71,188,.12),rgba(171,71,188,.03));border-color:rgba(171,71,188,.25);color:#ab47bc}
 .btn-speed.on{background:linear-gradient(180deg,rgba(171,71,188,.3),rgba(171,71,188,.1));border-color:#ab47bc;color:#fff;box-shadow:0 0 10px rgba(171,71,188,0.2)}
+.btn-tap{background:linear-gradient(180deg,rgba(255,210,63,.12),rgba(255,210,63,.03));border-color:rgba(255,210,63,.25);color:#ffd23f}
+.btn-tap.flash{background:linear-gradient(180deg,rgba(255,210,63,.4),rgba(255,210,63,.15));border-color:#ffd23f;color:#fff}
+.btn-undo{background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));border-color:rgba(255,255,255,.1);color:#888}
+.btn-undo:hover{color:#ccc}
 /* Pads — UNCHANGED */
 .pad-grid{padding:10px 20px 16px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px;flex:1;align-content:stretch}
 .pad{border-radius:8px;cursor:pointer;background:linear-gradient(160deg,#222228,#18181c,#141418);border:1.5px solid #2a2a2e;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;transition:all .06s ease-out;min-height:0;box-shadow:0 4px 12px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,0.04)}
@@ -451,7 +455,7 @@ function playPadSeq(i){
 
 // KEYBOARD
 var heldKeys=new Set();
-document.addEventListener("keydown",function(e){if(e.repeat)return;var idx=KEY_MAP.indexOf(e.key.toLowerCase());if(idx!==-1&&!heldKeys.has(idx)){heldKeys.add(idx);selectPad(idx);triggerPad(idx)}if(e.key===" "){e.preventDefault();toggleSequencer()}if(e.key==="r"&&e.metaKey){e.preventDefault();toggleRecord()}});
+document.addEventListener("keydown",function(e){if(e.repeat)return;var idx=KEY_MAP.indexOf(e.key.toLowerCase());if(idx!==-1&&!heldKeys.has(idx)&&!e.metaKey&&!e.ctrlKey){heldKeys.add(idx);selectPad(idx);triggerPad(idx)}if(e.key===" "){e.preventDefault();toggleSequencer()}if(e.key==="r"&&e.metaKey){e.preventDefault();toggleRecord()}if(e.key==="z"&&(e.metaKey||e.ctrlKey)){e.preventDefault();if(e.shiftKey)redo();else undo()}});
 document.addEventListener("keyup",function(e){var idx=KEY_MAP.indexOf(e.key.toLowerCase());if(idx!==-1){heldKeys.delete(idx);releasePad(idx)}});
 
 // FILE LOADING
@@ -799,7 +803,7 @@ function updateModeUI(){
   h+='<button class="action-btn btn-rec '+(isRecording?'active':'')+'" id="btnRec">⏺ REC</button>';
   h+='<button class="action-btn '+(isPlaying?'btn-stop':'btn-play')+'" id="btnPlayStop">'+(isPlaying?'■ STOP':'▶ PLAY')+'</button>';
   h+='<button class="btn-small" id="btnPrevPat">◀</button><button class="btn-small" id="btnNextPat">▶</button>';
-  h+='<button class="action-btn btn-load" id="btnLoad">LOAD</button><button class="action-btn btn-save" id="btnSave">SAVE</button><button class="action-btn btn-open" id="btnOpen">OPEN</button><button class="action-btn btn-export" id="btnExport">EXPORT</button>';
+  h+='<button class="action-btn btn-load" id="btnLoad">LOAD</button><button class="action-btn btn-tap" id="btnTap">TAP</button><button class="action-btn btn-undo" id="btnUndo">↩ UNDO</button><button class="action-btn btn-undo" id="btnRedo">↪ REDO</button><button class="action-btn btn-save" id="btnSave">SAVE</button><button class="action-btn btn-open" id="btnOpen">OPEN</button><button class="action-btn btn-export" id="btnExport">EXPORT</button>';
   if(currentMode==="CHOP")h='<button class="action-btn btn-chop" id="btnChopEven">EVEN</button><button class="action-btn btn-chop" id="btnChopSwing">SWING</button><button class="action-btn btn-chop" id="btnChopRandom">RANDOM</button><button class="action-btn btn-chop" id="btnChopTransient">DETECT</button><button class="btn-small" id="btnSliceUp">+</button><button class="btn-small" id="btnSliceDown">−</button><span style="font-size:8px;color:#ffd23f;margin:0 2px">÷'+chopSlices+'</span>'+h;
   if(currentMode==="SEQ"||currentMode==="SONG")h+='<button class="action-btn btn-clear" id="btnClear">CLR</button>';
   act.innerHTML=h;
@@ -809,6 +813,9 @@ function updateModeUI(){
   document.getElementById("btnDouble").addEventListener("click",function(){setSpeed(pads[selectedPad].speedMode===1?0:1)});
   document.getElementById("btnMetro").addEventListener("click",function(){metronomeOn=!metronomeOn;updateModeUI()});
   document.getElementById("btnLoad").addEventListener("click",function(){document.getElementById("fileInput").click()});
+  document.getElementById("btnTap").addEventListener("click",tapTempo);
+  document.getElementById("btnUndo").addEventListener("click",undo);
+  document.getElementById("btnRedo").addEventListener("click",redo);
   if(document.getElementById("btnSave"))document.getElementById("btnSave").addEventListener("click",saveSong);
   if(document.getElementById("btnOpen"))document.getElementById("btnOpen").addEventListener("click",function(){document.getElementById("songFileInput").click()});
   document.getElementById("btnExport").addEventListener("click",exportSequence);
@@ -954,6 +961,118 @@ function doChop(){
   drawWaveform();
 }
 var chopMode="even";
+
+// TAP TEMPO
+var tapTimes=[];
+function tapTempo(){
+  var now=performance.now();
+  // Reset if last tap was more than 2 seconds ago
+  if(tapTimes.length>0&&now-tapTimes[tapTimes.length-1]>2000) tapTimes=[];
+  tapTimes.push(now);
+  // Need at least 2 taps to calculate
+  if(tapTimes.length<2) return;
+  // Keep last 8 taps max
+  if(tapTimes.length>8) tapTimes.shift();
+  // Average the intervals
+  var total=0;
+  for(var i=1;i<tapTimes.length;i++) total+=tapTimes[i]-tapTimes[i-1];
+  var avgMs=total/(tapTimes.length-1);
+  var tapBpm=Math.round(60000/avgMs);
+  // Clamp to 60-200
+  tapBpm=Math.max(60,Math.min(200,tapBpm));
+  bpm=tapBpm;
+  if(isPlaying){stopSequencer();startSequencer()}
+  var bpmEl=document.getElementById("sampleBpm");if(bpmEl)bpmEl.innerHTML='BPM: <span>'+bpm+'</span>';
+  updateKnobDisplays();updateFooter();
+  // Flash the tap button
+  var btn=document.getElementById("btnTap");
+  if(btn){btn.classList.add("flash");setTimeout(function(){btn.classList.remove("flash")},100)}
+}
+
+// UNDO / REDO
+var undoStack=[];var redoStack=[];var MAX_UNDO=30;
+function captureState(){
+  var state={
+    bpm:bpm,swing:swing,masterVol:masterVol,chopSlices:chopSlices,
+    currentPattern:currentPattern,currentBank:currentBank,
+    song:JSON.parse(JSON.stringify(song)),
+    arrangement:JSON.parse(JSON.stringify(arrangement)),
+    pads:allBanks.map(function(bank){
+      return bank.map(function(p){
+        return{name:p.name,volume:p.volume,pitch:p.pitch,decay:p.decay,
+          startMarker:p.startMarker,endMarker:p.endMarker,
+          reversed:p.reversed,speedMode:p.speedMode,detectedBpm:p.detectedBpm,
+          hasBuffer:!!p.buffer,
+          reverb:p.reverb,reverbSize:p.reverbSize,reverbMix:p.reverbMix,
+          delay:p.delay,delayTime:p.delayTime,delayFeedback:p.delayFeedback,delayMix:p.delayMix,
+          distortion:p.distortion,distDrive:p.distDrive,
+          filter:p.filter,filterType:p.filterType,filterCutoff:p.filterCutoff,filterReso:p.filterReso};
+      });
+    })
+  };
+  return state;
+}
+
+function pushUndo(){
+  undoStack.push(captureState());
+  if(undoStack.length>MAX_UNDO) undoStack.shift();
+  redoStack=[];
+}
+
+function restoreState(state){
+  bpm=state.bpm;swing=state.swing;masterVol=state.masterVol;
+  chopSlices=state.chopSlices;currentPattern=state.currentPattern;
+  currentBank=state.currentBank;
+  // Restore song patterns
+  for(var pi=0;pi<MAX_PATTERNS;pi++){
+    for(var ri=0;ri<12;ri++){
+      for(var si=0;si<16;si++){
+        song[pi][ri][si]=state.song[pi]?state.song[pi][ri]?state.song[pi][ri][si]||false:false:false;
+      }
+    }
+  }
+  arrangement=state.arrangement?JSON.parse(JSON.stringify(state.arrangement)):[0];
+  // Restore pad settings (not buffers — those stay)
+  state.pads.forEach(function(bank,bi){
+    bank.forEach(function(p,i){
+      var pad=allBanks[bi][i];
+      pad.name=p.name;pad.volume=p.volume;pad.pitch=p.pitch;pad.decay=p.decay;
+      pad.startMarker=p.startMarker;pad.endMarker=p.endMarker;
+      pad.reversed=p.reversed;pad.speedMode=p.speedMode;pad.detectedBpm=p.detectedBpm;
+      pad.reverb=p.reverb;pad.reverbSize=p.reverbSize;pad.reverbMix=p.reverbMix;
+      pad.delay=p.delay;pad.delayTime=p.delayTime;pad.delayFeedback=p.delayFeedback;pad.delayMix=p.delayMix;
+      pad.distortion=p.distortion;pad.distDrive=p.distDrive;
+      pad.filter=p.filter;pad.filterType=p.filterType;pad.filterCutoff=p.filterCutoff;pad.filterReso=p.filterReso;
+    });
+  });
+  pads=allBanks[currentBank];sequence=song[currentPattern];
+  if(masterGain)masterGain.gain.value=masterVol/100;
+  buildPadGrid();updateBankUI();updateKnobDisplays();updateFooter();
+  if(currentMode==="FX")updateFXUI();
+  if(currentMode==="SEQ")buildSeqGrid();
+  if(currentMode==="SONG")buildArrangeGrid();
+  buildTransport();drawWaveform();
+}
+
+function undo(){
+  if(undoStack.length===0)return;
+  redoStack.push(captureState());
+  var state=undoStack.pop();
+  restoreState(state);
+}
+
+function redo(){
+  if(redoStack.length===0)return;
+  undoStack.push(captureState());
+  var state=redoStack.pop();
+  restoreState(state);
+}
+
+// Auto-capture undo state on key actions
+var _origAutoChop=autoChop;autoChop=function(){pushUndo();_origAutoChop()};
+var _origDoChop=doChop;doChop=function(){pushUndo();_origDoChop()};
+var _origClearPattern=clearPattern;clearPattern=function(){pushUndo();_origClearPattern()};
+var _origClearPadSound=clearPadSound;clearPadSound=function(pi){pushUndo();_origClearPadSound(pi)};
 
 // METRONOME
 function playMetronomeClick(step){if(!metronomeOn)return;var ctx=getAudioCtx();var osc=ctx.createOscillator();var gain=ctx.createGain();var isDown=(step%4===0);osc.type="sine";osc.frequency.setValueAtTime(isDown?1200:800,ctx.currentTime);gain.gain.setValueAtTime(isDown?0.3:0.15,ctx.currentTime);gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.05);osc.connect(gain);gain.connect(ctx.destination);osc.start();osc.stop(ctx.currentTime+0.06)}
