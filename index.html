@@ -766,6 +766,92 @@ function updateFooter(){
 
 buildPadGrid();updateBankUI();updateKnobDisplays();drawWaveform();buildTransport();
 window.addEventListener("resize",function(){if(currentMode!=="SEQ"&&currentMode!=="SONG")drawWaveform()});
+
+// ═══════════════════════════════════════
+//  PRESET SOUND LOADER — auto-loads from GitHub
+// ═══════════════════════════════════════
+var PRESET_BASE_URL="https://sohmnacode.github.io/sohmna-chop/sounds/";
+
+var PRESETS=[
+  // Bank A (index 0) — Drums
+  {bank:0,pad:0,file:"a1-kick",name:"Kick"},
+  {bank:0,pad:1,file:"a2-snare",name:"Snare"},
+  {bank:0,pad:2,file:"a3-hihat",name:"HiHat"},
+  {bank:0,pad:3,file:"a4-clap",name:"Clap"},
+  {bank:0,pad:4,file:"a5-tom-lo",name:"Tom Lo"},
+  {bank:0,pad:5,file:"a6-tom-hi",name:"Tom Hi"},
+  {bank:0,pad:6,file:"a7-rim",name:"Rim"},
+  {bank:0,pad:7,file:"a8-cowbell",name:"Cowbell"},
+  {bank:0,pad:8,file:"a9-perc1",name:"Perc 1"},
+  {bank:0,pad:9,file:"a10-perc2",name:"Perc 2"},
+  {bank:0,pad:10,file:"a11-fx1",name:"FX 1"},
+  {bank:0,pad:11,file:"a12-fx2",name:"FX 2"},
+  // Bank B (index 1) — Bass/Keys
+  {bank:1,pad:0,file:"b1-bass",name:"Bass"},
+  {bank:1,pad:1,file:"b2-chord",name:"Chord"},
+  {bank:1,pad:2,file:"b3-keys",name:"Keys"},
+  {bank:1,pad:3,file:"b4-stab",name:"Stab"},
+  {bank:1,pad:4,file:"b5-sub",name:"Sub"},
+  {bank:1,pad:5,file:"b6-pluck",name:"Pluck"},
+  {bank:1,pad:6,file:"b7-pad",name:"Pad"},
+  {bank:1,pad:7,file:"b8-lead",name:"Lead"},
+  {bank:1,pad:8,file:"b9-arp",name:"Arp"},
+  {bank:1,pad:9,file:"b10-bell",name:"Bell"},
+  {bank:1,pad:10,file:"b11-string",name:"String"},
+  {bank:1,pad:11,file:"b12-brass",name:"Brass"}
+];
+
+function loadPresetSound(preset){
+  // Try WAV first, then MP3
+  var extensions=["wav","mp3"];
+  var extIdx=0;
+
+  function tryNext(){
+    if(extIdx>=extensions.length)return; // Neither format found, skip silently
+    var url=PRESET_BASE_URL+preset.file+"."+extensions[extIdx];
+    
+    fetch(url).then(function(response){
+      if(!response.ok)throw new Error("Not found");
+      return response.arrayBuffer();
+    }).then(function(arrayBuffer){
+      var ctx=getAudioCtx();
+      ctx.decodeAudioData(arrayBuffer,function(buffer){
+        // Success — load onto the correct bank and pad
+        var pad=allBanks[preset.bank][preset.pad];
+        pad.buffer=buffer;
+        pad.name=preset.name;
+        pad.startMarker=0;
+        pad.endMarker=1;
+        // Update UI if we're currently viewing this bank
+        if(currentBank===preset.bank){
+          var nameEl=document.getElementById("padName"+preset.pad);
+          if(nameEl)nameEl.textContent=preset.name;
+          var indEl=document.getElementById("padInd"+preset.pad);
+          if(indEl)indEl.classList.add("loaded");
+          if(preset.pad===selectedPad)requestAnimationFrame(drawWaveform);
+        }
+        updateFooter();
+      },function(){
+        // Decode failed, try next format
+        extIdx++;tryNext();
+      });
+    }).catch(function(){
+      // Fetch failed, try next format
+      extIdx++;tryNext();
+    });
+  }
+  tryNext();
+}
+
+// Load all presets on startup
+function loadAllPresets(){
+  PRESETS.forEach(function(preset){
+    loadPresetSound(preset);
+  });
+}
+
+// Delay preset loading slightly so the UI renders first
+setTimeout(loadAllPresets,500);
 </script>
 </body>
 </html>
