@@ -802,27 +802,29 @@ var PRESETS=[
 ];
 
 function loadPresetSound(preset){
-  // Try MP3 first, then WAV
   var extensions=["mp3","wav"];
   var extIdx=0;
 
   function tryNext(){
-    if(extIdx>=extensions.length)return; // Neither format found, skip silently
+    if(extIdx>=extensions.length){console.log("PRESET: Could not load "+preset.file);return}
     var url=PRESET_BASE_URL+encodeURIComponent(preset.file+"."+extensions[extIdx]);
+    console.log("PRESET: Trying "+url);
     
-    fetch(url).then(function(response){
-      if(!response.ok)throw new Error("Not found");
-      return response.arrayBuffer();
-    }).then(function(arrayBuffer){
-      var ctx=getAudioCtx();
-      ctx.decodeAudioData(arrayBuffer,function(buffer){
-        // Success — load onto the correct bank and pad
+    var xhr=new XMLHttpRequest();
+    xhr.open("GET",url,true);
+    xhr.responseType="arraybuffer";
+    xhr.onload=function(){
+      if(xhr.status!==200){console.log("PRESET: 404 for "+url);extIdx++;tryNext();return}
+      console.log("PRESET: Downloaded "+preset.file+", decoding...");
+      var audioCtx2=new(window.AudioContext||window.webkitAudioContext)();
+      audioCtx2.decodeAudioData(xhr.response,function(buffer){
+        console.log("PRESET: Decoded "+preset.name+" ("+buffer.duration.toFixed(1)+"s)");
+        audioCtx2.close();
         var pad=allBanks[preset.bank][preset.pad];
         pad.buffer=buffer;
         pad.name=preset.name;
         pad.startMarker=0;
         pad.endMarker=1;
-        // Update UI if we're currently viewing this bank
         if(currentBank===preset.bank){
           var nameEl=document.getElementById("padName"+preset.pad);
           if(nameEl)nameEl.textContent=preset.name;
@@ -831,20 +833,21 @@ function loadPresetSound(preset){
           if(preset.pad===selectedPad)requestAnimationFrame(drawWaveform);
         }
         updateFooter();
-      },function(){
-        // Decode failed, try next format
+      },function(err){
+        console.log("PRESET: Decode failed for "+url,err);
+        audioCtx2.close();
         extIdx++;tryNext();
       });
-    }).catch(function(){
-      // Fetch failed, try next format
-      extIdx++;tryNext();
-    });
+    };
+    xhr.onerror=function(){console.log("PRESET: Network error for "+url);extIdx++;tryNext()};
+    xhr.send();
   }
   tryNext();
 }
 
 // Load all presets on startup
 function loadAllPresets(){
+  console.log("PRESET: Loading "+PRESETS.length+" presets from "+PRESET_BASE_URL);
   PRESETS.forEach(function(preset){
     loadPresetSound(preset);
   });
