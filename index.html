@@ -332,38 +332,97 @@ function playPadHold(i){
 }
 function releasePad(i){var v=activeVoices[i];if(!v)return;var ctx=getAudioCtx();try{v.gain.gain.cancelScheduledValues(ctx.currentTime);v.gain.gain.setValueAtTime(v.gain.gain.value,ctx.currentTime);v.gain.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.05);v.source.stop(ctx.currentTime+.06)}catch(e){}v.padEl.classList.remove("active");delete activeVoices[i];glowingPads.delete(i);if(activePadTimers[i]){clearTimeout(activePadTimers[i]);delete activePadTimers[i]}if(currentMode!=="SEQ"&&currentMode!=="SONG")drawWaveform()}
 
-// PREVIEW LOOP
+// PREVIEW LOOP — GRANULAR TIME STRETCH ENGINE
 var previewSource=null,previewGain=null,previewPadIdx=-1,previewBankIdx=-1,isPreviewing=false;
 var previewStartTime=0,previewDuration=0,previewPlaybackRate=1,previewAnimFrame2=null,previewPadRef=null;
 var previewPlayStart=0,previewPlayEnd=1;
+var grainTimer=null,grainPos=0;
+
 function previewAnimLoop(){if(!isPreviewing){previewAnimFrame2=null;return}if(currentMode!=="SEQ"&&currentMode!=="SONG")drawWaveform();previewAnimFrame2=requestAnimationFrame(previewAnimLoop)}
 function togglePreview(){if(isPreviewing){stopPreview();return}var pad=pads[selectedPad];if(!pad.buffer)return;startPreview(selectedPad)}
+
 function startPreview(pi){
   stopPreview();initFX();var ctx=getAudioCtx();var pvPad=pads[pi];var pvBank=currentBank;
   if(!pvPad.buffer)return;isPreviewing=true;previewPadIdx=pi;previewBankIdx=currentBank;previewPadRef=pvPad;
 
-  // In CHOP mode, play the FULL buffer (all slices as one continuous sample)
   var fullMode=(currentMode==="CHOP");
-  var playStart=fullMode?0:pvPad.startMarker;
-  var playEnd=fullMode?1:pvPad.endMarker;
+  previewPlayStart=fullMode?0:pvPad.startMarker;
+  previewPlayEnd=fullMode?1:pvPad.endMarker;
 
-  function playLoop(){
+  var buf=pvPad.buffer;
+  var startSec=previewPlayStart*buf.duration;
+  var endSec=previewPlayEnd*buf.duration;
+  var totalDur=endSec-startSec;
+  grainPos=0; // 0 to 1 progress through the region
+
+  // Granular time-stretch parameters
+  var GRAIN_SIZE=0.08; // 80ms grains
+  var OVERLAP=0.5;     // 50% overlap
+  var GRAIN_INTERVAL=GRAIN_SIZE*(1-OVERLAP); // scheduling interval
+
+  previewStartTime=ctx.currentTime;
+
+  function scheduleGrain(){
     if(!isPreviewing)return;
-    var src=ctx.createBufferSource();src.buffer=pvPad.buffer;var g=ctx.createGain();var vol=(pvPad.volume/100)*(masterVol/100);
-    g.gain.setValueAtTime(vol,ctx.currentTime);var rate=getPadRate(pvPad);src.playbackRate.value=rate;
-    var st=playStart*pvPad.buffer.duration,dur=(playEnd-playStart)*pvPad.buffer.duration;
-    src.connect(g);var sp=pads;pads=allBanks[pvBank];routeThroughFX(src,g,pi);pads=sp;
-    src.start(0,st,dur);previewSource=src;previewGain=g;previewStartTime=ctx.currentTime;previewDuration=dur/rate;previewPlaybackRate=rate;
-    // Store play range for waveform playhead
-    previewPlayStart=playStart;previewPlayEnd=playEnd;
-    if(currentBank===pvBank){var padEl=document.querySelectorAll(".pad")[pi];if(padEl)padEl.classList.add("active");markPadGlowing(pi,previewDuration*1000+50)}
-    src.onended=function(){if(isPreviewing){playLoop()}else{if(currentBank===pvBank){var pe=document.querySelectorAll(".pad")[pi];if(pe)pe.classList.remove("active")}}};
+    var vol=(pvPad.volume/100)*(masterVol/100);
+    // Calculate time-stretch ratio from BPM
+    var stretchRatio=1;
+    if(pvPad.detectedBpm>0) stretchRatio=pvPad.detectedBpm/bpm;
+    // Pitch from knob (independent of BPM)
+    var pitchRate=0.5+(pvPad.pitch/100)*1.5;
+
+    // Current position in the sample
+    var posSec=startSec+grainPos*totalDur;
+    
+    // Create grain
+    var src=ctx.createBufferSource();src.buffer=buf;
+    src.playbackRate.value=pitchRate;
+    var g=ctx.createGain();
+    // Envelope: fade in, sustain, fade out (Hann window)
+    var now=ctx.currentTime;
+    var fadeTime=GRAIN_SIZE*0.4;
+    g.gain.setValueAtTime(0,now);
+    g.gain.linearRampToValueAtTime(vol,now+fadeTime);
+    g.gain.setValueAtTime(vol,now+GRAIN_SIZE-fadeTime);
+    g.gain.linearRampToValueAtTime(0,now+GRAIN_SIZE);
+    
+    src.connect(g);
+    var sp=pads;pads=allBanks[pvBank];routeThroughFX(src,g,pi);pads=sp;
+    src.start(now,posSec,GRAIN_SIZE*pitchRate);
+    
+    previewSource=src;previewGain=g;
+
+    // Advance position based on stretch ratio
+    var advance=(GRAIN_INTERVAL/totalDur)*stretchRatio;
+    grainPos+=advance;
+    
+    // Update duration estimate for waveform playhead
+    previewDuration=totalDur/stretchRatio;
+    previewStartTime=ctx.currentTime-grainPos*previewDuration;
+
+    // Loop
+    if(grainPos>=1) grainPos=0;
+
+    if(currentBank===pvBank){
+      var padEl=document.querySelectorAll(".pad")[pi];
+      if(padEl)padEl.classList.add("active");
+    }
+
+    // Schedule next grain
+    grainTimer=setTimeout(scheduleGrain,GRAIN_INTERVAL*1000);
   }
-  playLoop();if(!previewAnimFrame2)previewAnimFrame2=requestAnimationFrame(previewAnimLoop);updateModeUI();
+
+  scheduleGrain();
+  if(!previewAnimFrame2)previewAnimFrame2=requestAnimationFrame(previewAnimLoop);
+  updateModeUI();
 }
+
 function stopPreview(){
-  isPreviewing=false;if(previewAnimFrame2){cancelAnimationFrame(previewAnimFrame2);previewAnimFrame2=null}
-  if(previewSource){try{if(previewGain){var ctx=getAudioCtx();previewGain.gain.cancelScheduledValues(ctx.currentTime);previewGain.gain.setValueAtTime(previewGain.gain.value,ctx.currentTime);previewGain.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.08);previewSource.stop(ctx.currentTime+.1)}}catch(e){}previewSource=null;previewGain=null}
+  isPreviewing=false;
+  if(grainTimer){clearTimeout(grainTimer);grainTimer=null}
+  if(previewAnimFrame2){cancelAnimationFrame(previewAnimFrame2);previewAnimFrame2=null}
+  if(previewSource){try{previewSource.stop()}catch(e){}}
+  previewSource=null;previewGain=null;
   if(previewPadIdx>=0&&previewBankIdx===currentBank){var pe=document.querySelectorAll(".pad")[previewPadIdx];if(pe)pe.classList.remove("active");glowingPads.delete(previewPadIdx)}
   previewPadIdx=-1;previewBankIdx=-1;updateModeUI();if(currentMode!=="SEQ"&&currentMode!=="SONG")drawWaveform();
 }
@@ -618,20 +677,14 @@ function resetKnob(param){
   } else if(defaults[param]!==undefined){
     setKV(param,defaults[param]);
   }
-  // Live-update preview playback rate
-  if((param==="bpm"||param==="pitch")&&isPreviewing&&previewSource&&previewPadRef){
-    try{previewSource.playbackRate.value=getPadRate(previewPadRef)}catch(e){}
-  }
+  // Granular engine reads BPM live — no restart needed
   updateKnobDisplays();updateFooter();
 }
 document.addEventListener("mousemove",function(e){if(!activeKnob)return;var k=document.querySelector('.knob[data-param="'+activeKnob+'"]');if(!k)return;var mn=+k.dataset.min,mx=+k.dataset.max;setKV(activeKnob,Math.round(Math.min(mx,Math.max(mn,knobStartVal+(knobStartY-e.clientY)*((mx-mn)/150)))));updateKnobDisplays()});
 document.addEventListener("mouseup",function(){activeKnob=null});
 function getKV(p){var pad=pads[selectedPad];var map={volume:pad.volume,pitch:pad.pitch,decay:pad.decay,bpm:bpm,swing:swing,master:masterVol,reverbSize:pad.reverbSize,reverbMix:pad.reverbMix,delayTime:pad.delayTime,delayFeedback:pad.delayFeedback,delayMix:pad.delayMix,distDrive:pad.distDrive,filterCutoff:pad.filterCutoff,filterReso:pad.filterReso};return map[p]!==undefined?map[p]:50}
 function setKV(p,v){var pad=pads[selectedPad];if(p==="volume")pad.volume=v;else if(p==="pitch")pad.pitch=v;else if(p==="decay")pad.decay=v;else if(p==="bpm"){bpm=v;if(isPlaying){stopSequencer();startSequencer()}}else if(p==="swing")swing=v;else if(p==="master"){masterVol=v;if(masterGain)masterGain.gain.value=v/100}else if(p==="reverbSize")pad.reverbSize=v;else if(p==="reverbMix")pad.reverbMix=v;else if(p==="delayTime")pad.delayTime=v;else if(p==="delayFeedback")pad.delayFeedback=v;else if(p==="delayMix")pad.delayMix=v;else if(p==="distDrive")pad.distDrive=v;else if(p==="filterCutoff")pad.filterCutoff=v;else if(p==="filterReso")pad.filterReso=v;updateFooter();
-  // Live-update preview playback rate when BPM or pitch changes
-  if((p==="bpm"||p==="pitch")&&isPreviewing&&previewSource&&previewPadRef){
-    try{previewSource.playbackRate.value=getPadRate(previewPadRef)}catch(e){}
-  }
+  // Granular engine reads BPM live on each grain — no restart needed
 }
 function updateKnobDisplays(){var pad=pads[selectedPad];var vals={volume:pad.volume,pitch:pad.pitch,decay:pad.decay,bpm:bpm,swing:swing,master:masterVol,reverbSize:pad.reverbSize,reverbMix:pad.reverbMix,delayTime:pad.delayTime,delayFeedback:pad.delayFeedback,delayMix:pad.delayMix,distDrive:pad.distDrive,filterCutoff:pad.filterCutoff,filterReso:pad.filterReso};Object.keys(vals).forEach(function(p){var v=vals[p];var d=document.querySelector('[data-param-display="'+p+'"]');if(d)d.textContent=v;var k=document.querySelector('.knob[data-param="'+p+'"]');if(k)k.querySelector(".knob-pointer").style.transform="translate(-50%,-100%) rotate("+((v-(+k.dataset.min))/((+k.dataset.max)-(+k.dataset.min))*270-135)+"deg)"})}
 
