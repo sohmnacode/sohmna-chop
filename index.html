@@ -627,6 +627,7 @@ function computeWaveformPeaks(buf,w){var d=buf.getChannelData(0),step=Math.ceil(
 function drawWaveform(){
   try{
     var canvas=document.getElementById("waveformCanvas"),ctx=canvas.getContext("2d"),rect=canvas.parentElement.getBoundingClientRect();
+    if(rect.width<1||rect.height<1)return; // canvas not visible yet
     canvas.width=rect.width;canvas.height=rect.height;var w=canvas.width,h=canvas.height,pad=pads[selectedPad];
     ctx.clearRect(0,0,w,h);ctx.strokeStyle="rgba(255,255,255,0.03)";ctx.lineWidth=1;
     for(var i=0;i<16;i++){var x2=(i/16)*w;ctx.beginPath();ctx.moveTo(x2,0);ctx.lineTo(x2,h);ctx.stroke()}
@@ -744,11 +745,17 @@ function updateModeUI(){
   if(document.getElementById("btnSliceDown"))document.getElementById("btnSliceDown").addEventListener("click",function(){chopSlices=Math.max(2,chopSlices-1);updateModeUI();drawWaveform()});
   if(document.getElementById("btnClear"))document.getElementById("btnClear").addEventListener("click",clearPattern);
   sg.classList.add("hidden");cv.classList.add("hidden");ph.classList.add("hidden");ag.classList.add("hidden");fxr.classList.add("hidden");
-  if(currentMode==="SAMPLE"){cv.classList.remove("hidden");drawWaveform();songMode=false}
+  if(currentMode==="SAMPLE"){cv.classList.remove("hidden");songMode=false;requestAnimationFrame(drawWaveform)}
+  else if(currentMode==="PAD"){cv.classList.remove("hidden");songMode=false;requestAnimationFrame(drawWaveform)}
+  else if(currentMode==="CHOP"){cv.classList.remove("hidden");songMode=false;requestAnimationFrame(drawWaveform)}
   else if(currentMode==="SEQ"){sg.classList.remove("hidden");buildSeqGrid()}
   else if(currentMode==="SONG"){ag.classList.remove("hidden");buildArrangeGrid();songMode=true}
-  else if(currentMode==="FX"){cv.classList.remove("hidden");fxr.classList.remove("hidden");drawWaveform();updateFXUI()}
-  else{cv.classList.remove("hidden");drawWaveform();songMode=false}
+  else if(currentMode==="FX"){cv.classList.remove("hidden");fxr.classList.remove("hidden");requestAnimationFrame(drawWaveform);updateFXUI()}
+  // Always refresh pad names/indicators to match current data
+  for(var pi=0;pi<12;pi++){
+    var ne=document.getElementById("padName"+pi);if(ne)ne.textContent=pads[pi].name;
+    var ie=document.getElementById("padInd"+pi);if(ie){if(pads[pi].buffer)ie.classList.add("loaded");else ie.classList.remove("loaded")}
+  }
   buildTransport();updateFooter();
 }
 
