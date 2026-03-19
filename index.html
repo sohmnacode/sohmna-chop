@@ -189,9 +189,37 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono','SF Mon
 .shortcut-section{font-size:8px;color:#555;letter-spacing:2px;margin:12px 0 6px;text-transform:uppercase}
 /* Zoom indicator */
 .zoom-indicator{position:absolute;top:4px;left:8px;font-size:7px;color:rgba(255,255,255,0.3);letter-spacing:1px;pointer-events:none;z-index:3}
+/* License gate */
+.license-gate{position:fixed;inset:0;background:#050507;display:flex;align-items:center;justify-content:center;z-index:999;font-family:'JetBrains Mono','SF Mono',monospace}
+.license-gate.hidden{display:none}
+.license-box{text-align:center;padding:40px;max-width:380px;width:90%}
+.license-logo{font-size:20px;font-weight:700;letter-spacing:6px;background:linear-gradient(90deg,#ff3c5f,#ff6b35,#ffd23f);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px}
+.license-version{font-size:9px;color:#555;letter-spacing:2px;margin-bottom:30px}
+.license-label{font-size:8px;color:#888;letter-spacing:2px;margin-bottom:10px;text-transform:uppercase}
+.license-input{width:100%;padding:12px 16px;background:#111114;border:1.5px solid #2a2a2e;border-radius:8px;color:#fff;font-family:inherit;font-size:14px;letter-spacing:4px;text-align:center;text-transform:uppercase;outline:none;transition:border-color .2s}
+.license-input:focus{border-color:rgba(255,210,63,.4)}
+.license-input.error{border-color:#ff3c5f;animation:shake .4s}
+.license-input.success{border-color:#06d6a0}
+.license-btn{margin-top:16px;padding:10px 32px;background:linear-gradient(180deg,rgba(255,210,63,.15),rgba(255,210,63,.05));border:1.5px solid rgba(255,210,63,.3);border-radius:8px;color:#ffd23f;font-family:inherit;font-size:10px;letter-spacing:2px;cursor:pointer;transition:all .2s}
+.license-btn:hover{background:linear-gradient(180deg,rgba(255,210,63,.25),rgba(255,210,63,.1));border-color:rgba(255,210,63,.5)}
+.license-msg{font-size:8px;color:#ff3c5f;margin-top:12px;letter-spacing:1px;min-height:16px}
+.license-footer{font-size:7px;color:#333;letter-spacing:1.5px;margin-top:30px}
+@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+.app-locked{display:none!important}
 </style>
 </head>
 <body>
+<div class="license-gate" id="licenseGate">
+  <div class="license-box">
+    <div class="license-logo">SOHMNA CHOP</div>
+    <div class="license-version">OREN-I</div>
+    <div class="license-label">ENTER LICENSE KEY</div>
+    <input class="license-input" id="licenseInput" type="text" maxlength="19" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false">
+    <button class="license-btn" id="licenseBtn">ACTIVATE</button>
+    <div class="license-msg" id="licenseMsg"></div>
+    <div class="license-footer">sohmna.com</div>
+  </div>
+</div>
 <div class="drop-overlay" id="dropOverlay">DROP AUDIO FILE</div>
 <div class="shortcut-overlay" id="shortcutOverlay">
   <div class="shortcut-box">
@@ -300,6 +328,88 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono','SF Mon
 <input type="file" accept=".json" id="songFileInput" class="hidden">
 
 <script>
+// ═══════════════════════════════════════
+//  LICENSE KEY SYSTEM
+// ═══════════════════════════════════════
+// Add your valid license keys here. Each key is a one-time activation code.
+// Format: XXXX-XXXX-XXXX-XXXX
+var VALID_KEYS=[
+  "SOHM-CHOP-OREN-7GLY","SOHM-CHOP-OREN-5A3I","SOHM-CHOP-OREN-BAZK","SOHM-CHOP-OREN-YNRR","SOHM-CHOP-OREN-0ISG",
+  "SOHM-CHOP-OREN-G8KK","SOHM-CHOP-OREN-TDBH","SOHM-CHOP-OREN-I6NH","SOHM-CHOP-OREN-9BXC","SOHM-CHOP-OREN-KR7T",
+  "SOHM-CHOP-OREN-0LT3","SOHM-CHOP-OREN-0TX2","SOHM-CHOP-OREN-2SWR","SOHM-CHOP-OREN-3A7A","SOHM-CHOP-OREN-3ZSE",
+  "SOHM-CHOP-OREN-4GXG","SOHM-CHOP-OREN-4LO7","SOHM-CHOP-OREN-520Q","SOHM-CHOP-OREN-59BE","SOHM-CHOP-OREN-5BO8",
+  "SOHM-CHOP-OREN-6DQX","SOHM-CHOP-OREN-6JZD","SOHM-CHOP-OREN-6X3T","SOHM-CHOP-OREN-79YO","SOHM-CHOP-OREN-7JVB",
+  "SOHM-CHOP-OREN-8QXC","SOHM-CHOP-OREN-9GMQ","SOHM-CHOP-OREN-ACP0","SOHM-CHOP-OREN-ADDA","SOHM-CHOP-OREN-ATQW",
+  "SOHM-CHOP-OREN-B80S","SOHM-CHOP-OREN-CQO2","SOHM-CHOP-OREN-DNGT","SOHM-CHOP-OREN-DRFV","SOHM-CHOP-OREN-DXPY",
+  "SOHM-CHOP-OREN-FB80","SOHM-CHOP-OREN-FS84","SOHM-CHOP-OREN-GG5U","SOHM-CHOP-OREN-HDGD","SOHM-CHOP-OREN-IJL5",
+  "SOHM-CHOP-OREN-JF33","SOHM-CHOP-OREN-JG17","SOHM-CHOP-OREN-L6VS","SOHM-CHOP-OREN-M315","SOHM-CHOP-OREN-M7GE",
+  "SOHM-CHOP-OREN-MRAW","SOHM-CHOP-OREN-NCXZ","SOHM-CHOP-OREN-O3B1","SOHM-CHOP-OREN-ODDA","SOHM-CHOP-OREN-OKQ9",
+  "SOHM-CHOP-OREN-OXYE","SOHM-CHOP-OREN-P0W6","SOHM-CHOP-OREN-PZNJ","SOHM-CHOP-OREN-Q35R","SOHM-CHOP-OREN-SECT",
+  "SOHM-CHOP-OREN-SNOC","SOHM-CHOP-OREN-TZ6M","SOHM-CHOP-OREN-VIPF","SOHM-CHOP-OREN-X9ED","SOHM-CHOP-OREN-YZIK"
+];
+
+var LICENSE_STORAGE_KEY="sohmna-chop-license";
+
+function checkLicense(){
+  var stored=localStorage.getItem(LICENSE_STORAGE_KEY);
+  if(stored&&VALID_KEYS.indexOf(stored)!==-1){
+    unlockApp();return true;
+  }
+  // Show the gate
+  document.getElementById("licenseGate").classList.remove("hidden");
+  document.querySelector(".machine").classList.add("app-locked");
+  return false;
+}
+
+function unlockApp(){
+  document.getElementById("licenseGate").classList.add("hidden");
+  document.querySelector(".machine").classList.remove("app-locked");
+}
+
+function attemptActivation(){
+  var input=document.getElementById("licenseInput");
+  var msg=document.getElementById("licenseMsg");
+  var key=input.value.trim().toUpperCase();
+  // Auto-format: add dashes if missing
+  var raw=key.replace(/[^A-Z0-9]/g,"");
+  if(raw.length===16&&key.indexOf("-")===-1){
+    key=raw.slice(0,4)+"-"+raw.slice(4,8)+"-"+raw.slice(8,12)+"-"+raw.slice(12,16);
+    input.value=key;
+  }
+  if(VALID_KEYS.indexOf(key)!==-1){
+    localStorage.setItem(LICENSE_STORAGE_KEY,key);
+    input.classList.remove("error");
+    input.classList.add("success");
+    msg.style.color="#06d6a0";
+    msg.textContent="LICENSE ACTIVATED ✓";
+    setTimeout(unlockApp,800);
+  } else {
+    input.classList.remove("success");
+    input.classList.add("error");
+    msg.style.color="#ff3c5f";
+    msg.textContent="INVALID LICENSE KEY";
+    setTimeout(function(){input.classList.remove("error")},400);
+  }
+}
+
+// Auto-format input as user types (add dashes)
+document.addEventListener("DOMContentLoaded",function(){
+  var input=document.getElementById("licenseInput");
+  input.addEventListener("input",function(){
+    var raw=this.value.replace(/[^A-Za-z0-9]/g,"").toUpperCase();
+    var formatted="";
+    for(var i=0;i<raw.length&&i<16;i++){
+      if(i>0&&i%4===0)formatted+="-";
+      formatted+=raw[i];
+    }
+    this.value=formatted;
+  });
+  input.addEventListener("keydown",function(e){if(e.key==="Enter")attemptActivation()});
+  document.getElementById("licenseBtn").addEventListener("click",attemptActivation);
+  // Check on load
+  checkLicense();
+});
+
 window.onerror=function(m,u,l,c,e){console.error("ERR:",m,l,e);return true};
 window.addEventListener("unhandledrejection",function(e){console.error("ASYNC:",e.reason);e.preventDefault()});
 
