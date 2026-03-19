@@ -70,6 +70,8 @@ body{background:#050507;color:#ccc;font-family:'JetBrains Mono','SF Mono',monosp
 .mix-mute{font-size:5px;padding:1px 3px;border-radius:2px;cursor:pointer;border:1px solid rgba(255,255,255,0.06);background:transparent;color:#555;font-family:inherit}
 .mix-mute.on{background:rgba(255,60,95,.2);border-color:rgba(255,60,95,.4);color:#ff3c5f}
 .mix-btns{display:flex;gap:2px}
+.mix-meter{width:3px;position:absolute;right:1px;top:0;bottom:0;border-radius:1px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end}
+.mix-meter-fill{width:100%;background:linear-gradient(0deg,#06d6a0,#ffd23f 70%,#ff3c5f 90%);border-radius:1px;transition:height .06s;min-height:0}
 /* Sample info bar */:flex;align-items:center;gap:16px;padding:4px 20px;background:linear-gradient(180deg,rgba(255,210,63,0.03),transparent);border-bottom:1px solid rgba(255,255,255,0.03)}
 /* Sample info bar */
 .sample-info{display:flex;align-items:center;gap:16px;padding:4px 20px;background:linear-gradient(180deg,rgba(255,210,63,0.03),transparent);border-bottom:1px solid rgba(255,255,255,0.03)}
@@ -284,9 +286,16 @@ function getPadRate(pad){
 
 // FX ENGINE
 var masterGain=null,fxReady=false;
-function initFX(){if(fxReady)return;var ctx=getAudioCtx();masterGain=ctx.createGain();masterGain.gain.value=masterVol/100;masterGain.connect(ctx.destination);fxReady=true}
+var padAnalysers=[];var meterAnimFrame=null;
+function initFX(){if(fxReady)return;var ctx=getAudioCtx();masterGain=ctx.createGain();masterGain.gain.value=masterVol/100;masterGain.connect(ctx.destination);
+  // Create per-pad analysers
+  for(var i=0;i<12;i++){var a=ctx.createAnalyser();a.fftSize=256;a.smoothingTimeConstant=0.7;padAnalysers[i]=a}
+  fxReady=true;
+}
 function routeThroughFX(source,gainNode,padIdx){
   initFX();var pad=pads[padIdx];var ctx=getAudioCtx();var current=gainNode;
+  // Connect to analyser for metering
+  if(padAnalysers[padIdx])gainNode.connect(padAnalysers[padIdx]);
   // 3-band EQ
   if(pad.eqLow!==50||pad.eqMid!==50||pad.eqHigh!==50){
     var lo=ctx.createBiquadFilter();lo.type="lowshelf";lo.frequency.value=320;lo.gain.value=(pad.eqLow-50)*0.4;
@@ -1079,7 +1088,7 @@ function updateModeUI(){
   else if(currentMode==="SEQ"){sg.classList.remove("hidden");buildSeqGrid()}
   else if(currentMode==="SONG"){ag.classList.remove("hidden");buildArrangeGrid();songMode=true}
   else if(currentMode==="FX"){cv.classList.remove("hidden");fxr.classList.remove("hidden");requestAnimationFrame(drawWaveform);updateFXUI()}
-  else if(currentMode==="MIX"){mg.classList.remove("hidden");buildMixerGrid()}
+  else if(currentMode==="MIX"){mg.classList.remove("hidden");buildMixerGrid();if(!meterAnimFrame)meterAnimFrame=requestAnimationFrame(updateMeters)}
   // Always refresh pad names/indicators to match current data
   for(var pi=0;pi<12;pi++){
     var ne=document.getElementById("padName"+pi);if(ne)ne.textContent=pads[pi].name;
@@ -1113,6 +1122,7 @@ function buildMixerGrid(){
     html+='<div class="mix-fader-track" data-ch="'+i+'" data-param="fader">';
     html+='<div class="mix-fader-fill" style="height:'+volPct+'%;background:'+p.color.base+(isMuted?'33':'88')+'"></div>';
     html+='<div class="mix-fader-thumb" style="bottom:calc('+volPct+'% - 3px)"></div>';
+    html+='<div class="mix-meter"><div class="mix-meter-fill" id="meter'+i+'" style="height:0%"></div></div>';
     html+='</div>';
     // Pan
     html+='<div class="mix-pan" data-ch="'+i+'" data-param="pan">';
@@ -1184,6 +1194,32 @@ document.addEventListener("mousemove",function(e){
   }
 });
 document.addEventListener("mouseup",function(){mixerDragging=null});
+
+// Meter animation loop
+function updateMeters(){
+  if(currentMode!=="MIX"){meterAnimFrame=null;return}
+  for(var i=0;i<12;i++){
+    var el=document.getElementById("meter"+i);
+    if(!el)continue;
+    if(padAnalysers[i]){
+      var data=new Uint8Array(padAnalysers[i].frequencyBinCount);
+      padAnalysers[i].getByteTimeDomainData(data);
+      // Calculate RMS level
+      var sum=0;
+      for(var j=0;j<data.length;j++){var v=(data[j]-128)/128;sum+=v*v}
+      var rms=Math.sqrt(sum/data.length);
+      var db=Math.max(0,Math.min(100,rms*300)); // scale to percentage
+      el.style.height=db+"%";
+    } else {
+      el.style.height="0%";
+    }
+  }
+  meterAnimFrame=requestAnimationFrame(updateMeters);
+}
+
+// Start/stop meter animation when entering/leaving MIX mode
+var _origUpdateModeUI=updateModeUI;
+// (meters start via the mode switch check below)
 
 // SONG ARRANGEMENT
 function buildArrangeGrid(){var g=document.getElementById("arrangeGrid");var html="";for(var i=0;i<16;i++){var patIdx=arrangement[i];var filled=patIdx!==undefined;var playing=songMode&&isPlaying&&arrangementPos===i;html+='<div class="arrange-slot '+(filled?'filled':'empty')+' '+(playing?'playing':'')+'" data-slot="'+i+'">'+(filled?'P'+(patIdx+1):'+')+'</div>'}g.innerHTML=html;g.querySelectorAll(".arrange-slot").forEach(function(el){el.addEventListener("click",function(){var slot=+el.dataset.slot;if(arrangement[slot]!==undefined){var next=arrangement[slot]+1;if(next>=MAX_PATTERNS)arrangement.splice(slot,1);else arrangement[slot]=next}else{if(slot<=arrangement.length)arrangement.splice(slot,0,currentPattern)}buildArrangeGrid()})})}
