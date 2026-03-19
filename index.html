@@ -74,7 +74,7 @@ body{background:#050507;color:#ccc;font-family:'JetBrains Mono','SF Mono',monosp
 .mix-meter-fill{width:100%;background:linear-gradient(0deg,#06d6a0,#ffd23f 70%,#ff3c5f 90%);border-radius:1px;transition:height .06s;min-height:0}
 /* Sample info bar */:flex;align-items:center;gap:16px;padding:4px 20px;background:linear-gradient(180deg,rgba(255,210,63,0.03),transparent);border-bottom:1px solid rgba(255,255,255,0.03)}
 /* Sample info bar */
-.sample-info{display:flex;align-items:center;justify-content:center;gap:16px;padding:4px 20px;background:linear-gradient(180deg,rgba(255,210,63,0.03),transparent);border-bottom:1px solid rgba(255,255,255,0.03)}
+.sample-info{display:flex;align-items:center;justify-content:center;gap:16px;padding:4px 20px;width:100%;text-align:center;background:linear-gradient(180deg,rgba(255,210,63,0.03),transparent);border-bottom:1px solid rgba(255,255,255,0.03)}
 .sample-info-item{font-size:8px;color:#888;letter-spacing:1.5px;text-transform:uppercase}
 .sample-info-item span{color:#ffd23f;font-weight:700}
 /* Transport — subtle glass */
@@ -154,10 +154,43 @@ body{background:#050507;color:#ccc;font-family:'JetBrains Mono','SF Mono',monosp
 .hidden{display:none}
 .drop-overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;z-index:100;font-size:16px;color:#06d6a0;letter-spacing:4px;border:2px dashed rgba(6,214,160,.4);margin:20px;border-radius:16px;backdrop-filter:blur(8px)}
 .drop-overlay.visible{display:flex}
+/* Shortcut overlay */
+.shortcut-overlay{position:fixed;inset:0;background:rgba(0,0,0,.92);display:none;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(8px)}
+.shortcut-overlay.visible{display:flex}
+.shortcut-box{background:linear-gradient(180deg,#1e1e24,#141418);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:24px 32px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto}
+.shortcut-title{font-size:14px;color:#fff;letter-spacing:3px;margin-bottom:16px;text-align:center}
+.shortcut-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04)}
+.shortcut-key{font-size:10px;color:#ffd23f;letter-spacing:1px;font-weight:700}
+.shortcut-desc{font-size:10px;color:#888;letter-spacing:0.5px}
+.shortcut-section{font-size:8px;color:#555;letter-spacing:2px;margin:12px 0 6px;text-transform:uppercase}
+/* Zoom indicator */
+.zoom-indicator{position:absolute;top:4px;left:8px;font-size:7px;color:rgba(255,255,255,0.3);letter-spacing:1px;pointer-events:none;z-index:3}
 </style>
 </head>
 <body>
 <div class="drop-overlay" id="dropOverlay">DROP AUDIO FILE</div>
+<div class="shortcut-overlay" id="shortcutOverlay">
+  <div class="shortcut-box">
+    <div class="shortcut-title">KEYBOARD SHORTCUTS</div>
+    <div class="shortcut-section">Pads</div>
+    <div class="shortcut-row"><span class="shortcut-key">1 2 3 4</span><span class="shortcut-desc">Pads 1–4 (top row)</span></div>
+    <div class="shortcut-row"><span class="shortcut-key">Q W E R</span><span class="shortcut-desc">Pads 5–8 (middle row)</span></div>
+    <div class="shortcut-row"><span class="shortcut-key">A S D F</span><span class="shortcut-desc">Pads 9–12 (bottom row)</span></div>
+    <div class="shortcut-section">Transport</div>
+    <div class="shortcut-row"><span class="shortcut-key">SPACE</span><span class="shortcut-desc">Play / Stop sequencer</span></div>
+    <div class="shortcut-row"><span class="shortcut-key">⌘ + R</span><span class="shortcut-desc">Toggle recording</span></div>
+    <div class="shortcut-section">Edit</div>
+    <div class="shortcut-row"><span class="shortcut-key">⌘ + Z</span><span class="shortcut-desc">Undo</span></div>
+    <div class="shortcut-row"><span class="shortcut-key">⌘ + ⇧ + Z</span><span class="shortcut-desc">Redo</span></div>
+    <div class="shortcut-section">Mouse</div>
+    <div class="shortcut-row"><span class="shortcut-key">LEFT CLICK</span><span class="shortcut-desc">Play pad / select</span></div>
+    <div class="shortcut-row"><span class="shortcut-key">RIGHT CLICK PAD</span><span class="shortcut-desc">Delete sound</span></div>
+    <div class="shortcut-row"><span class="shortcut-key">RIGHT CLICK KNOB</span><span class="shortcut-desc">Reset to default</span></div>
+    <div class="shortcut-row"><span class="shortcut-key">SCROLL WAVEFORM</span><span class="shortcut-desc">Zoom in / out</span></div>
+    <div class="shortcut-row"><span class="shortcut-key">DRAG FILE</span><span class="shortcut-desc">Load onto pad</span></div>
+    <div class="shortcut-section">Press ? to close</div>
+  </div>
+</div>
 <div class="machine">
   <div class="header">
     <div class="header-left"><div class="status-dot" id="statusDot"></div><span class="logo">Sohmna Chop</span><span class="version">OREN-I</span></div>
@@ -182,7 +215,8 @@ body{background:#050507;color:#ccc;font-family:'JetBrains Mono','SF Mono',monosp
   <div class="display-area">
     <div class="display" id="display">
       <canvas id="waveformCanvas"></canvas>
-      <div class="display-placeholder" id="displayPlaceholder">DROP SAMPLE OR CLICK LOAD — SAMPLE MODE</div>
+      <div class="zoom-indicator" id="zoomIndicator"></div>
+      <div class="display-placeholder" id="displayPlaceholder">DROP SAMPLE OR CLICK LOAD — PRESS ? FOR SHORTCUTS</div>
       <div class="seq-grid hidden" id="seqGrid"></div>
       <div class="arrange-grid hidden" id="arrangeGrid"></div>
       <div class="mixer-grid hidden" id="mixerGrid"></div>
@@ -348,7 +382,8 @@ function buildPadGrid(){
 }
 
 function selectPad(i){
-  selectedPad=i;
+  selectedPad=i;wfZoom=1;wfScrollOffset=0;
+  var zi=document.getElementById("zoomIndicator");if(zi)zi.textContent="";
   document.querySelectorAll(".pad").forEach(function(el,idx){
     el.classList.toggle("selected",idx===i);
     var bar=el.querySelector(".pad-selected-bar");
@@ -523,7 +558,9 @@ function playPadSeq(i,velLevel){
 
 // KEYBOARD
 var heldKeys=new Set();
-document.addEventListener("keydown",function(e){if(e.repeat)return;var idx=KEY_MAP.indexOf(e.key.toLowerCase());if(idx!==-1&&!heldKeys.has(idx)&&!e.metaKey&&!e.ctrlKey){heldKeys.add(idx);selectPad(idx);triggerPad(idx)}if(e.key===" "){e.preventDefault();toggleSequencer()}if(e.key==="r"&&e.metaKey){e.preventDefault();toggleRecord()}if(e.key==="z"&&(e.metaKey||e.ctrlKey)){e.preventDefault();if(e.shiftKey)redo();else undo()}});
+// Waveform zoom: 1.0 = full view, higher = zoomed in
+var wfZoom=1,wfScrollOffset=0;
+document.addEventListener("keydown",function(e){if(e.repeat)return;var idx=KEY_MAP.indexOf(e.key.toLowerCase());if(idx!==-1&&!heldKeys.has(idx)&&!e.metaKey&&!e.ctrlKey){heldKeys.add(idx);selectPad(idx);triggerPad(idx)}if(e.key===" "){e.preventDefault();toggleSequencer()}if(e.key==="r"&&e.metaKey){e.preventDefault();toggleRecord()}if(e.key==="z"&&(e.metaKey||e.ctrlKey)){e.preventDefault();if(e.shiftKey)redo();else undo()}if(e.key==="?"||(e.key==="/"&&e.shiftKey)){var ov=document.getElementById("shortcutOverlay");ov.classList.toggle("visible")}});
 document.addEventListener("keyup",function(e){var idx=KEY_MAP.indexOf(e.key.toLowerCase());if(idx!==-1){heldKeys.delete(idx);releasePad(idx)}});
 
 // ── MIDI CONTROLLER SUPPORT ──
@@ -943,10 +980,12 @@ function drawWaveform(){
     var canvas=document.getElementById("waveformCanvas"),ctx=canvas.getContext("2d"),rect=canvas.parentElement.getBoundingClientRect();
     if(rect.width<1||rect.height<1)return; // canvas not visible yet
     canvas.width=rect.width;canvas.height=rect.height;var w=canvas.width,h=canvas.height,pad=pads[selectedPad];
-    ctx.clearRect(0,0,w,h);ctx.strokeStyle="rgba(255,255,255,0.03)";ctx.lineWidth=1;
+    ctx.clearRect(0,0,w,h);
+    ctx.save();ctx.translate(-wfScrollOffset*w*wfZoom,0);ctx.scale(wfZoom,1);
+    ctx.strokeStyle="rgba(255,255,255,0.03)";ctx.lineWidth=1/wfZoom;
     for(var i=0;i<16;i++){var x2=(i/16)*w;ctx.beginPath();ctx.moveTo(x2,0);ctx.lineTo(x2,h);ctx.stroke()}
     ctx.beginPath();ctx.moveTo(0,h/2);ctx.lineTo(w,h/2);ctx.stroke();
-    if(!pad.buffer){document.getElementById("displayPlaceholder").classList.remove("hidden");return}
+    if(!pad.buffer){ctx.restore();document.getElementById("displayPlaceholder").classList.remove("hidden");return}
     document.getElementById("displayPlaceholder").classList.add("hidden");
     var ck=pad.id+"-"+pad.buffer.length+"-"+w;var peaks=waveformCache.get(ck);
     if(!peaks){peaks=computeWaveformPeaks(pad.buffer,w);waveformCache.set(ck,peaks)}
@@ -978,11 +1017,29 @@ function drawWaveform(){
         ctx.fillStyle="rgba(38,198,218,0.4)";ctx.font="7px 'JetBrains Mono',monospace";ctx.fillText("PREVIEW",w-8,h-18);
       }
     }
+    ctx.restore();
   }catch(err){console.error("Draw:",err)}
 }
 var draggingMarker=null;var wfCanvas=document.getElementById("waveformCanvas");
-wfCanvas.addEventListener("mousedown",function(e){var pad=pads[selectedPad];if(!pad.buffer)return;var rect=wfCanvas.getBoundingClientRect();var x=(e.clientX-rect.left)/rect.width;draggingMarker=Math.abs(x-pad.startMarker)<Math.abs(x-pad.endMarker)?"start":"end"});
-document.addEventListener("mousemove",function(e){if(!draggingMarker)return;var rect=wfCanvas.getBoundingClientRect();var x=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width));var pad=pads[selectedPad];if(draggingMarker==="start")pad.startMarker=Math.min(x,pad.endMarker-.01);else pad.endMarker=Math.max(x,pad.startMarker+.01);drawWaveform()});
+// Scroll to zoom waveform
+wfCanvas.addEventListener("wheel",function(e){
+  e.preventDefault();
+  var pad=pads[selectedPad];if(!pad.buffer)return;
+  var rect=wfCanvas.getBoundingClientRect();
+  var mouseX=(e.clientX-rect.left)/rect.width;
+  var oldZoom=wfZoom;
+  if(e.deltaY<0)wfZoom=Math.min(20,wfZoom*1.2);
+  else wfZoom=Math.max(1,wfZoom/1.2);
+  // Adjust offset to zoom towards mouse position
+  wfScrollOffset=mouseX-(mouseX-wfScrollOffset)*(wfZoom/oldZoom);
+  wfScrollOffset=Math.max(0,Math.min(1-1/wfZoom,wfScrollOffset));
+  if(wfZoom<=1.01){wfZoom=1;wfScrollOffset=0}
+  var zi=document.getElementById("zoomIndicator");
+  if(zi)zi.textContent=wfZoom>1.01?Math.round(wfZoom)+"× ZOOM":"";
+  drawWaveform();
+},{passive:false});
+wfCanvas.addEventListener("mousedown",function(e){var pad=pads[selectedPad];if(!pad.buffer)return;var rect=wfCanvas.getBoundingClientRect();var x=(e.clientX-rect.left)/rect.width;var viewStart=wfScrollOffset;var viewEnd=wfScrollOffset+1/wfZoom;var xNorm=viewStart+x*(viewEnd-viewStart);draggingMarker=Math.abs(xNorm-pad.startMarker)<Math.abs(xNorm-pad.endMarker)?"start":"end"});
+document.addEventListener("mousemove",function(e){if(!draggingMarker)return;var rect=wfCanvas.getBoundingClientRect();var x=Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width));var viewStart=wfScrollOffset;var viewEnd=wfScrollOffset+1/wfZoom;var xNorm=viewStart+x*(viewEnd-viewStart);xNorm=Math.max(0,Math.min(1,xNorm));var pad=pads[selectedPad];if(draggingMarker==="start")pad.startMarker=Math.min(xNorm,pad.endMarker-.01);else pad.endMarker=Math.max(xNorm,pad.startMarker+.01);drawWaveform()});
 document.addEventListener("mouseup",function(){draggingMarker=null});
 
 // KNOBS
