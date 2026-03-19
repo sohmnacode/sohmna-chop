@@ -1099,7 +1099,32 @@ function updateModeUI(){
 
 // MIXER
 var soloState=Array(12).fill(false),muteState=Array(12).fill(false);
-var mixerDragging=null; // {type:'fader'|'pan'|'eqLow'|'eqMid'|'eqHigh', pad:idx, startY/X, startVal}
+var mixerDragging=null;
+
+function updateMixerVisuals(){
+  var anySolo=soloState.some(function(s){return s});
+  for(var i=0;i<12;i++){
+    var p=pads[i];
+    var isMuted=muteState[i]||(anySolo&&!soloState[i]);
+    // Fader fill + thumb
+    var fill=document.getElementById("mfill"+i);
+    var thumb=document.getElementById("mthumb"+i);
+    if(fill){fill.style.height=p.volume+"%";fill.style.background=p.color.base+(isMuted?"33":"88")}
+    if(thumb)thumb.style.bottom="calc("+p.volume+"% - 3px)";
+    // Pan
+    var panDot=document.getElementById("mpan"+i);
+    if(panDot)panDot.style.left="calc("+p.pan+"% - 3px)";
+    // EQ
+    var eqH=document.getElementById("meqH"+i);if(eqH)eqH.style.height=p.eqHigh+"%";
+    var eqM=document.getElementById("meqM"+i);if(eqM)eqM.style.height=p.eqMid+"%";
+    var eqL=document.getElementById("meqL"+i);if(eqL)eqL.style.height=p.eqLow+"%";
+    // Solo/mute buttons
+    var sBtn=document.getElementById("msolo"+i);if(sBtn)sBtn.className="mix-solo"+(soloState[i]?" on":"");
+    var mBtn=document.getElementById("mmute"+i);if(mBtn)mBtn.className="mix-mute"+(muteState[i]?" on":"");
+    // Label
+    var label=document.getElementById("mlabel"+i);if(label){label.textContent=p.name.slice(0,5);label.className="mix-label"+(i===selectedPad?" active-ch":"")}
+  }
+}
 
 function buildMixerGrid(){
   var g=document.getElementById("mixerGrid");var html="";
@@ -1107,91 +1132,87 @@ function buildMixerGrid(){
   for(var i=0;i<12;i++){
     var p=pads[i];
     var isMuted=muteState[i]||(anySolo&&!soloState[i]);
-    var volPct=p.volume;
-    var panPct=p.pan;
     html+='<div class="mix-channel" data-ch="'+i+'">';
-    html+='<div class="mix-label '+(i===selectedPad?'active-ch':'')+'">'+p.name.slice(0,5)+'</div>';
-    // EQ bars
+    html+='<div class="mix-label '+(i===selectedPad?'active-ch':'')+'" id="mlabel'+i+'">'+p.name.slice(0,5)+'</div>';
     html+='<div class="mix-eq">';
-    html+='<div class="mix-eq-bar" data-ch="'+i+'" data-eq="eqHigh"><div class="mix-eq-fill" style="height:'+p.eqHigh+'%;background:rgba(66,165,245,0.5)"></div></div>';
-    html+='<div class="mix-eq-bar" data-ch="'+i+'" data-eq="eqMid"><div class="mix-eq-fill" style="height:'+p.eqMid+'%;background:rgba(6,214,160,0.5)"></div></div>';
-    html+='<div class="mix-eq-bar" data-ch="'+i+'" data-eq="eqLow"><div class="mix-eq-fill" style="height:'+p.eqLow+'%;background:rgba(255,138,101,0.5)"></div></div>';
+    html+='<div class="mix-eq-bar" data-ch="'+i+'" data-eq="eqHigh"><div class="mix-eq-fill" id="meqH'+i+'" style="height:'+p.eqHigh+'%;background:rgba(66,165,245,0.5)"></div></div>';
+    html+='<div class="mix-eq-bar" data-ch="'+i+'" data-eq="eqMid"><div class="mix-eq-fill" id="meqM'+i+'" style="height:'+p.eqMid+'%;background:rgba(6,214,160,0.5)"></div></div>';
+    html+='<div class="mix-eq-bar" data-ch="'+i+'" data-eq="eqLow"><div class="mix-eq-fill" id="meqL'+i+'" style="height:'+p.eqLow+'%;background:rgba(255,138,101,0.5)"></div></div>';
     html+='</div>';
     html+='<div class="mix-eq-label">H M L</div>';
-    // Volume fader
     html+='<div class="mix-fader-track" data-ch="'+i+'" data-param="fader">';
-    html+='<div class="mix-fader-fill" style="height:'+volPct+'%;background:'+p.color.base+(isMuted?'33':'88')+'"></div>';
-    html+='<div class="mix-fader-thumb" style="bottom:calc('+volPct+'% - 3px)"></div>';
+    html+='<div class="mix-fader-fill" id="mfill'+i+'" style="height:'+p.volume+'%;background:'+p.color.base+(isMuted?'33':'88')+'"></div>';
+    html+='<div class="mix-fader-thumb" id="mthumb'+i+'" style="bottom:calc('+p.volume+'% - 3px)"></div>';
     html+='<div class="mix-meter"><div class="mix-meter-fill" id="meter'+i+'" style="height:0%"></div></div>';
     html+='</div>';
-    // Pan
     html+='<div class="mix-pan" data-ch="'+i+'" data-param="pan">';
-    html+='<div class="mix-pan-dot" style="left:calc('+panPct+'% - 3px)"></div>';
+    html+='<div class="mix-pan-dot" id="mpan'+i+'" style="left:calc('+p.pan+'% - 3px)"></div>';
     html+='</div>';
-    // Solo/Mute buttons
     html+='<div class="mix-btns">';
-    html+='<button class="mix-solo '+(soloState[i]?'on':'')+'" data-ch="'+i+'">S</button>';
-    html+='<button class="mix-mute '+(muteState[i]?'on':'')+'" data-ch="'+i+'">M</button>';
+    html+='<button class="mix-solo '+(soloState[i]?'on':'')+'" id="msolo'+i+'" data-ch="'+i+'">S</button>';
+    html+='<button class="mix-mute '+(muteState[i]?'on':'')+'" id="mmute'+i+'" data-ch="'+i+'">M</button>';
     html+='</div>';
     html+='</div>';
   }
   g.innerHTML=html;
-  // Event listeners
+  // Event listeners — mousedown starts drag, stores reference to the TRACK element
   g.querySelectorAll(".mix-fader-track").forEach(function(el){
     el.addEventListener("mousedown",function(e){
-      var ch=+el.dataset.ch;var rect=el.getBoundingClientRect();
+      e.preventDefault();
+      var ch=+el.dataset.ch;
+      mixerDragging={type:"fader",pad:ch,track:el};
+      var rect=el.getBoundingClientRect();
       var val=Math.round((1-(e.clientY-rect.top)/rect.height)*100);
-      val=Math.max(0,Math.min(100,val));
-      pads[ch].volume=val;buildMixerGrid();
-      mixerDragging={type:"fader",pad:ch,el:el};
+      pads[ch].volume=Math.max(0,Math.min(100,val));
+      updateMixerVisuals();
     });
   });
   g.querySelectorAll(".mix-pan").forEach(function(el){
     el.addEventListener("mousedown",function(e){
-      var ch=+el.dataset.ch;var rect=el.getBoundingClientRect();
+      e.preventDefault();
+      var ch=+el.dataset.ch;
+      mixerDragging={type:"pan",pad:ch,track:el};
+      var rect=el.getBoundingClientRect();
       var val=Math.round(((e.clientX-rect.left)/rect.width)*100);
-      val=Math.max(0,Math.min(100,val));
-      pads[ch].pan=val;buildMixerGrid();
-      mixerDragging={type:"pan",pad:ch,el:el};
+      pads[ch].pan=Math.max(0,Math.min(100,val));
+      updateMixerVisuals();
     });
   });
   g.querySelectorAll(".mix-eq-bar").forEach(function(el){
     el.addEventListener("mousedown",function(e){
-      var ch=+el.dataset.ch;var eq=el.dataset.eq;var rect=el.getBoundingClientRect();
+      e.preventDefault();
+      var ch=+el.dataset.ch;var eq=el.dataset.eq;
+      mixerDragging={type:eq,pad:ch,track:el};
+      var rect=el.getBoundingClientRect();
       var val=Math.round((1-(e.clientY-rect.top)/rect.height)*100);
-      val=Math.max(0,Math.min(100,val));
-      pads[ch][eq]=val;buildMixerGrid();
-      mixerDragging={type:eq,pad:ch,el:el};
+      pads[ch][eq]=Math.max(0,Math.min(100,val));
+      updateMixerVisuals();
     });
   });
   g.querySelectorAll(".mix-solo").forEach(function(el){
-    el.addEventListener("click",function(){var ch=+el.dataset.ch;soloState[ch]=!soloState[ch];buildMixerGrid()});
+    el.addEventListener("click",function(){soloState[+el.dataset.ch]=!soloState[+el.dataset.ch];updateMixerVisuals()});
   });
   g.querySelectorAll(".mix-mute").forEach(function(el){
-    el.addEventListener("click",function(){var ch=+el.dataset.ch;muteState[ch]=!muteState[ch];buildMixerGrid()});
+    el.addEventListener("click",function(){muteState[+el.dataset.ch]=!muteState[+el.dataset.ch];updateMixerVisuals()});
   });
 }
 
-// Global mouse move/up for mixer dragging
+// Global mouse move — lightweight visual update only, no rebuild
 document.addEventListener("mousemove",function(e){
   if(!mixerDragging)return;
   var d=mixerDragging;
+  var rect=d.track.getBoundingClientRect();
   if(d.type==="fader"){
-    var rect=d.el.getBoundingClientRect();
     var val=Math.round((1-(e.clientY-rect.top)/rect.height)*100);
     pads[d.pad].volume=Math.max(0,Math.min(100,val));
-    buildMixerGrid();
   } else if(d.type==="pan"){
-    var rect2=d.el.getBoundingClientRect();
-    var val2=Math.round(((e.clientX-rect2.left)/rect2.width)*100);
+    var val2=Math.round(((e.clientX-rect.left)/rect.width)*100);
     pads[d.pad].pan=Math.max(0,Math.min(100,val2));
-    buildMixerGrid();
-  } else if(d.type==="eqLow"||d.type==="eqMid"||d.type==="eqHigh"){
-    var rect3=d.el.getBoundingClientRect();
-    var val3=Math.round((1-(e.clientY-rect3.top)/rect3.height)*100);
+  } else {
+    var val3=Math.round((1-(e.clientY-rect.top)/rect.height)*100);
     pads[d.pad][d.type]=Math.max(0,Math.min(100,val3));
-    buildMixerGrid();
   }
+  updateMixerVisuals();
 });
 document.addEventListener("mouseup",function(){mixerDragging=null});
 
